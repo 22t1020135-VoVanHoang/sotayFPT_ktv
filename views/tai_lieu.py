@@ -1,0 +1,157 @@
+"""
+views/tai_lieu.py
+Render tab "Tài liệu": subfolder Tân binh và Cấu hình thiết bị.
+"""
+
+import os
+import streamlit as st
+from excel_renderer import show_excel_inline
+from views.quy_trinh import render_section_header
+
+
+# ── Dữ liệu tĩnh ──
+_TAN_BINH_SUBS = [
+    {
+        "icon": "💡", "title": "1.1  Kỹ Năng",
+        "desc": "Kỹ năng mềm, giao tiếp, xử lý tình huống với khách hàng",
+        "link": "https://drive.google.com/drive/folders/1LVBcFccDMTpCZOMW_iSiYuIBfkJ7oeOT",
+        "color": "#F26F21", "bg": "#FFF5EF", "border": "rgba(242,111,33,0.2)",
+    },
+    {
+        "icon": "🔬", "title": "1.2  Chuyên Môn",
+        "desc": "Quy trình kỹ thuật, triển khai, xử lý sự cố chuyên sâu",
+        "link": "https://drive.google.com/drive/folders/1mP531dZ0ZG-0FwuL75BNFEWRF_UfT4YY",
+        "color": "#005DA3", "bg": "#EFF6FF", "border": "rgba(0,93,163,0.15)",
+    },
+    {
+        "icon": "📋", "title": "1.3  Chính Sách & Chế Độ",
+        "desc": "Chính sách công ty, chế độ đãi ngộ, quy định nội bộ",
+        "link": "https://drive.google.com/drive/folders/1dP5TtP7-CTqWa3VIqb3um6vP9BwMZbpY",
+        "color": "#1A7A42", "bg": "#EFFAF4", "border": "rgba(26,122,66,0.15)",
+    },
+]
+
+_SUBFOLDERS = {
+    "🎓  Tài liệu tân binh": "Tài liệu tân binh",
+    "⚙️  Cấu hình thiết bị": "Cấu hình thiết bị",
+}
+
+_SUPPORTED_EXT = [".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"]
+_EXT_ICONS = {
+    ".xlsx": "📊", ".xls": "📊",
+    ".pptx": "📑", ".ppt": "📑",
+    ".pdf":  "📄",
+    ".docx": "📝", ".doc": "📝",
+}
+_MIME_MAP = {
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".ppt":  "application/vnd.ms-powerpoint",
+    ".pdf":  "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc":  "application/msword",
+}
+
+
+def _render_tan_binh():
+    """Hiển thị subfolder Tài liệu tân binh."""
+    st.markdown(
+        "<p style='color:#8896A5;font-size:0.82rem;margin-bottom:14px;"
+        "font-family:Sora,sans-serif;'>"
+        "📌 Bấm vào từng mục để mở thư mục Google Drive tương ứng.</p>",
+        unsafe_allow_html=True,
+    )
+    for item in _TAN_BINH_SUBS:
+        st.markdown(f"""
+        <a href="{item['link']}" target="_blank" style="text-decoration:none;display:block;">
+            <div class="doc-card" style="border-color:{item['border']};border-left:3px solid {item['color']};">
+                <div class="doc-card-icon" style="background:{item['bg']};">{item['icon']}</div>
+                <div style="flex:1;">
+                    <div class="doc-card-title" style="color:{item['color']};">{item['title']}</div>
+                    <div class="doc-card-desc">{item['desc']}</div>
+                </div>
+                <div class="doc-card-arrow" style="color:{item['color']};">↗</div>
+            </div>
+        </a>""", unsafe_allow_html=True)
+
+    st.markdown(
+        "<div style='margin-top:8px;text-align:center;'>"
+        "<a href='https://drive.google.com/drive/folders/1-C5YrCV7UGPL0NOf7e8dWWurAHodJ7qr' "
+        "target='_blank' style='color:#B0BBC8;font-size:0.78rem;text-decoration:none;"
+        "font-family:Sora,sans-serif;'>"
+        "📂 Xem toàn bộ thư mục →</a></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_cau_hinh():
+    """Hiển thị subfolder Cấu hình thiết bị."""
+    import os as _os
+    _base = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    folder_dir = _os.path.join(_base, "tailieu", "cau_hinh")
+
+    files_found = []
+    if os.path.exists(folder_dir):
+        for fname in sorted(os.listdir(folder_dir)):
+            ext = os.path.splitext(fname)[1].lower()
+            if ext in _SUPPORTED_EXT:
+                files_found.append((fname, ext, os.path.join(folder_dir, fname)))
+
+    if not files_found:
+        st.markdown(f"""
+        <div class="doc-placeholder">
+            <div style="font-size:2.2rem;margin-bottom:10px;">⚙️</div>
+            <b style="color:#3A4454;font-family:Sora,sans-serif;">Chưa có tài liệu nào</b><br><br>
+            <span style="color:#8896A5;font-family:Sora,sans-serif;font-size:0.85rem;">
+                Tạo thư mục <code style="background:#F0F3F8;padding:2px 7px;
+                border-radius:5px;color:#005DA3;font-size:0.82rem;">{folder_dir}</code>
+                và đặt file vào đó.
+            </span>
+        </div>""", unsafe_allow_html=True)
+        return
+
+    for fname, ext, fpath in files_found:
+        icon = _EXT_ICONS.get(ext, "📎")
+        with st.expander(f"{icon}  {fname}"):
+            if ext in (".xlsx", ".xls"):
+                show_excel_inline(fpath)
+            else:
+                st.markdown(
+                    f"<p style='color:#8896A5;font-size:0.88rem;"
+                    f"font-family:Sora,sans-serif;margin-bottom:8px;'>"
+                    f"File <b>{ext.upper()}</b> — Tải về để xem.</p>",
+                    unsafe_allow_html=True,
+                )
+                with open(fpath, "rb") as f:
+                    st.download_button(
+                        label=f"📥  Tải {fname}",
+                        data=f,
+                        file_name=fname,
+                        mime=_MIME_MAP.get(ext, "application/octet-stream"),
+                        key=f"dl_{fpath}",
+                    )
+
+
+def render_tai_lieu():
+    """Render toàn bộ tab Tài liệu gồm 2 subfolder."""
+    render_section_header("📁", "Tài liệu")
+
+    # Subfolder buttons
+    _, sf1, sf2, _ = st.columns([1, 1, 1, 1])
+    for col, (label, sf_key) in zip([sf1, sf2], _SUBFOLDERS.items()):
+        with col:
+            is_sf = st.session_state.active_subfolder == sf_key
+            if st.button(
+                label, key=f"sf_{sf_key}",
+                type="primary" if is_sf else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state.active_subfolder = sf_key
+                st.rerun()
+
+    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+    active_sf = st.session_state.active_subfolder
+
+    if active_sf == "Tài liệu tân binh":
+        _render_tan_binh()
+    elif active_sf == "Cấu hình thiết bị":
+        _render_cau_hinh()
