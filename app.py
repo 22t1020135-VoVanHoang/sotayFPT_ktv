@@ -7,6 +7,7 @@ Entry point: chạy bằng lệnh
 """
 
 import base64
+import os
 import streamlit as st
 
 # ── Cấu hình trang (phải gọi đầu tiên) ──
@@ -114,11 +115,37 @@ if "active_folder" not in st.session_state:
 if "active_subfolder" not in st.session_state:
     st.session_state.active_subfolder = "Tài liệu tân binh"
 
+_APP_BASE = os.path.dirname(os.path.abspath(__file__))
+
+def _count_folder(folder_key: str) -> int:
+    """Đếm số mục cho từng folder, kể cả file tài liệu thực tế."""
+    if folder_key == "Xử lý sự cố":
+        # Đếm rows từ DATA + số file trong tailieu/xu_ly_su_co
+        rows = sum(1 for r in DATA if r["folder"] == folder_key)
+        _xu_ly_dir = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
+        _supported = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
+        files = sum(
+            1 for f in os.listdir(_xu_ly_dir)
+            if os.path.splitext(f)[1].lower() in _supported
+        ) if os.path.isdir(_xu_ly_dir) else 0
+        return rows + files
+    if folder_key == "Tài liệu":
+        # Đếm 3 link tân binh + số file trong cau_hinh
+        tan_binh = 3
+        _cau_hinh_dir = os.path.join(_APP_BASE, "tailieu", "cau_hinh")
+        _supported = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
+        cau_hinh = sum(
+            1 for f in os.listdir(_cau_hinh_dir)
+            if os.path.splitext(f)[1].lower() in _supported
+        ) if os.path.isdir(_cau_hinh_dir) else 0
+        return tan_binh + cau_hinh
+    return sum(1 for r in DATA if r["folder"] == folder_key)
+
 _, c1, c2, c3, c4, _ = st.columns([0.5, 1, 1, 1, 1, 0.5])
 for col, (label, folder_key) in zip([c1, c2, c3, c4], FOLDERS.items()):
     with col:
-        folder_count = sum(1 for r in DATA if r["folder"] == folder_key)
-        count_label  = "" if folder_key == "Tài liệu" else f"  ({folder_count})"
+        folder_count = _count_folder(folder_key)
+        count_label  = f"  ({folder_count})"
         is_active    = st.session_state.active_folder == folder_key
         if st.button(
             f"{label}{count_label}",
