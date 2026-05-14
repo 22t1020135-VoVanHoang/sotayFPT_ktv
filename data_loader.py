@@ -1,20 +1,21 @@
 """
 data_loader.py
-Chứa logic đọc và parse file SO_TAY_KTV.xlsx bằng openpyxl.
+Load và parse file SO_TAY_KTV.xlsx bằng openpyxl.
 """
 
-import openpyxl
 import os
+import openpyxl
 
-# Thư mục chứa file data_loader.py (tức là thư mục sotay_ktv/)
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+REQUIRED_COLS = {"ten", "buoc"}
+
 
 def _find_file(filename: str) -> str:
     """
     Tìm file theo thứ tự ưu tiên:
-    1. Cùng thư mục với app.py (BASE_DIR)
+    1. Cùng thư mục với app.py
     2. Thư mục con tailieu/
-    3. Trả về đường dẫn mặc định để app.py báo lỗi đúng cách
+    Trả về đường dẫn mặc định (sẽ raise FileNotFoundError nếu không tồn tại).
     """
     candidates = [
         os.path.join(_BASE_DIR, filename),
@@ -23,24 +24,28 @@ def _find_file(filename: str) -> str:
     for path in candidates:
         if os.path.isfile(path):
             return path
-    return os.path.join(_BASE_DIR, filename)  # fallback → sẽ raise FileNotFoundError
-
-FILE_PATH     = _find_file("SO_TAY_KTV.xlsx")
-REQUIRED_COLS = {"ten", "buoc"}
+    return candidates[0]  # fallback → app.py báo lỗi
 
 
-def _load_sotay(file_path: str) -> list:
+FILE_PATH = _find_file("SO_TAY_KTV.xlsx")
+
+
+def load_data() -> list:
     """
-    Đọc file Excel SO_TAY_KTV.xlsx và trả về danh sách dict.
-    Mỗi dict gồm: {'ten': str, 'buoc': str, 'folder': str}
+    Đọc file Excel SO_TAY_KTV.xlsx.
+    Trả về list[dict] với keys: 'ten', 'buoc', 'folder'.
+    Raise FileNotFoundError / ValueError nếu có lỗi.
     """
-    wb = openpyxl.load_workbook(file_path, data_only=True)
+    if not os.path.isfile(FILE_PATH):
+        raise FileNotFoundError(FILE_PATH)
+
+    wb = openpyxl.load_workbook(FILE_PATH, data_only=True)
     ws = wb.active
 
-    headers = []
-    for cell in ws[1]:
-        val = cell.value
-        headers.append(str(val).strip().lower() if val is not None else "")
+    headers = [
+        str(cell.value).strip().lower() if cell.value is not None else ""
+        for cell in ws[1]
+    ]
 
     missing = REQUIRED_COLS - set(headers)
     if missing:
@@ -50,15 +55,15 @@ def _load_sotay(file_path: str) -> list:
     idx_buoc   = headers.index("buoc")
     idx_folder = headers.index("folder") if "folder" in headers else None
 
+    def cell_str(row_idx: int, col_idx: int) -> str:
+        v = ws.cell(row_idx, col_idx + 1).value
+        return str(v).strip() if v is not None else ""
+
     rows = []
     for r in range(2, ws.max_row + 1):
-        def cell_val(col_idx):
-            v = ws.cell(r, col_idx + 1).value
-            return str(v).strip() if v is not None else ""
-
-        ten    = cell_val(idx_ten)
-        buoc   = cell_val(idx_buoc)
-        folder = cell_val(idx_folder) if idx_folder is not None else ""
+        ten    = cell_str(r, idx_ten)
+        buoc   = cell_str(r, idx_buoc)
+        folder = cell_str(r, idx_folder) if idx_folder is not None else ""
 
         if not ten and not buoc:
             continue
@@ -66,15 +71,8 @@ def _load_sotay(file_path: str) -> list:
         rows.append({
             "ten":    ten,
             "buoc":   buoc,
-            "folder": folder if folder else "Quy trình",
+            "folder": folder or "Quy trình",
         })
 
+    wb.close()
     return rows
-
-
-def load_data() -> list:
-    """
-    Hàm public: load dữ liệu từ FILE_PATH.
-    Trả về list rows, hoặc raise exception để app.py xử lý.
-    """
-    return _load_sotay(FILE_PATH)

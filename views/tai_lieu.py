@@ -2,15 +2,41 @@
 views/tai_lieu.py
 Render tab "Tài liệu": subfolder Tân binh và Cấu hình thiết bị.
 Hỗ trợ tìm kiếm theo keyword.
+
+BUG FIX: os.listdir() luôn được guard bằng os.path.isdir() trước khi gọi,
+tránh crash khi thư mục không tồn tại trên Streamlit Cloud.
 """
 
 import os
+import re
+import html as html_lib
+
 import streamlit as st
-from excel_renderer import show_excel_inline
+
 from views.quy_trinh import render_section_header
 
+# ──────────────────────────────────────────────────────────────
+#  Hằng số
+# ──────────────────────────────────────────────────────────────
 
-_TAN_BINH_SUBS = [
+_BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_CAU_HINH_DIR = os.path.join(_BASE_DIR, "tailieu", "cau_hinh")
+
+_SUPPORTED_EXT = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
+_MIME_MAP = {
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".ppt":  "application/vnd.ms-powerpoint",
+    ".pdf":  "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc":  "application/msword",
+}
+
+_SUBFOLDERS = {
+    "🎓  Tài liệu tân binh": "Tài liệu tân binh",
+    "⚙️  Cấu hình thiết bị": "Cấu hình thiết bị",
+}
+
+_TAN_BINH_ITEMS = [
     {
         "icon": "💡", "title": "1.1  Kỹ Năng",
         "desc": "Kỹ năng mềm, giao tiếp, xử lý tình huống với khách hàng",
@@ -34,21 +60,8 @@ _TAN_BINH_SUBS = [
     },
 ]
 
-_SUBFOLDERS = {
-    "🎓  Tài liệu tân binh": "Tài liệu tân binh",
-    "⚙️  Cấu hình thiết bị": "Cấu hình thiết bị",
-}
-
-_SUPPORTED_EXT = [".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"]
-_MIME_MAP = {
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ".ppt":  "application/vnd.ms-powerpoint",
-    ".pdf":  "application/pdf",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".doc":  "application/msword",
-}
-
-_PDF_TITLES = {
+# Metadata tĩnh cho từng file PDF trong cau_hinh/
+_PDF_META: dict[str, dict] = {
     "internethubax3000s.pdf": {
         "title": "Hướng dẫn sử dụng Internet Hub AX3000S",
         "desc":  "Thông số kỹ thuật, giao diện quang, LAN, WLAN và thông số vật lý thiết bị",
@@ -62,7 +75,8 @@ _PDF_TITLES = {
         "search_tags": ["skyworth", "wifi6", "wifi 6", "ax3000s", "cấu hình thiết bị", "ont"],
     },
 }
-_PDF_TITLE_FALLBACK = {
+
+_PDF_META_FALLBACK = {
     "title": "Tài liệu đào tạo triển khai Mesh Wi-Fi 6 GPON Internet Hub AX3000S",
     "desc":  "Tài liệu nội bộ FPT Digital — hướng dẫn cấu hình và thực hành lab (v1.0)",
     "color": "#F26F21", "bg": "#FFF5EF", "border": "rgba(242,111,33,0.2)",
@@ -70,11 +84,18 @@ _PDF_TITLE_FALLBACK = {
 }
 
 
+# ──────────────────────────────────────────────────────────────
+#  Helpers
+# ──────────────────────────────────────────────────────────────
+
 def _get_pdf_meta(fname: str) -> dict:
-    if fname in _PDF_TITLES:
-        return _PDF_TITLES[fname]
-    if "đào" in fname.lower() or "#u0111" in fname.lower() or "T#U" in fname:
-        return _PDF_TITLE_FALLBACK
+    """Trả về metadata hiển thị cho một file PDF."""
+    if fname in _PDF_META:
+        return _PDF_META[fname]
+    fname_lower = fname.lower()
+    # Nhận diện file đào tạo (tên có thể bị encode URL)
+    if "đào" in fname_lower or "#u0111" in fname_lower or "T#U" in fname:
+        return _PDF_META_FALLBACK
     return {
         "title": os.path.splitext(fname)[0],
         "desc":  "Tài liệu kỹ thuật",
@@ -83,29 +104,29 @@ def _get_pdf_meta(fname: str) -> dict:
     }
 
 
-def _highlight(text: str, kw: str) -> str:
-    """Highlight keyword trong text bằng thẻ mark."""
-    if not kw or not kw.strip():
-        return text
-    import re, html as html_lib
-    escaped_text = html_lib.escape(text)
-    pattern = re.compile(re.escape(kw.strip()), re.IGNORECASE)
-    def replacer(m):
-        return (
-            f'<mark style="background:#FFF3CD;color:#856404;'
-            f'padding:1px 3px;border-radius:3px;font-weight:600;">'
+def _highlight(text: str, keyword: str) -> str:
+    """Highlight keyword trong text (đã escape HTML)."""
+    if not keyword or not keyword.strip():
+        return html_lib.escape(text)
+    escaped = html_lib.escape(text)
+    pattern = re.compile(re.escape(keyword.strip()), re.IGNORECASE)
+    return pattern.sub(
+        lambda m: (
+            '<mark style="background:#FFF3CD;color:#856404;'
+            'padding:1px 3px;border-radius:3px;font-weight:600;">'
             f'{html_lib.escape(m.group())}</mark>'
-        )
-    return pattern.sub(replacer, escaped_text)
+        ),
+        escaped,
+    )
 
 
 def _item_matches(item: dict, kw_lower: str) -> bool:
-    """Kiểm tra item (tân binh hoặc PDF) có khớp keyword không."""
+    """Kiểm tra item có khớp keyword hay không."""
     if not kw_lower:
         return True
-    tags = item.get("search_tags", [])
+    tags  = item.get("search_tags", [])
     title = item.get("title", "").lower()
-    desc = item.get("desc", "").lower()
+    desc  = item.get("desc",  "").lower()
     return (
         any(kw_lower in tag for tag in tags)
         or kw_lower in title
@@ -113,11 +134,33 @@ def _item_matches(item: dict, kw_lower: str) -> bool:
     )
 
 
-def _render_tan_binh(keyword: str = ""):
-    """Hiển thị subfolder Tài liệu tân binh, filter theo keyword."""
-    kw_lower = keyword.strip().lower()
+def _list_supported_files(folder: str) -> list[tuple[str, str, str]]:
+    """
+    Liệt kê các file được hỗ trợ trong folder.
+    Luôn guard bằng os.path.isdir() để tránh crash trên Streamlit Cloud.
+    Trả về list[(filename, ext, full_path)].
+    """
+    if not os.path.isdir(folder):
+        return []
+    return [
+        (fname, os.path.splitext(fname)[1].lower(), os.path.join(folder, fname))
+        for fname in sorted(os.listdir(folder))
+        if os.path.splitext(fname)[1].lower() in _SUPPORTED_EXT
+    ]
 
-    filtered = [item for item in _TAN_BINH_SUBS if _item_matches(item, kw_lower)]
+
+def count_cau_hinh_files() -> int:
+    """Đếm số file trong thư mục cau_hinh (dùng bởi app.py)."""
+    return len(_list_supported_files(_CAU_HINH_DIR))
+
+
+# ──────────────────────────────────────────────────────────────
+#  Render subfolder: Tài liệu tân binh
+# ──────────────────────────────────────────────────────────────
+
+def _render_tan_binh(keyword: str = "") -> None:
+    kw_lower = keyword.strip().lower()
+    filtered = [item for item in _TAN_BINH_ITEMS if _item_matches(item, kw_lower)]
 
     if not filtered:
         st.markdown(
@@ -133,16 +176,15 @@ def _render_tan_binh(keyword: str = ""):
         "📌 Bấm vào từng mục để mở thư mục Google Drive tương ứng.</p>",
         unsafe_allow_html=True,
     )
+
     for item in filtered:
-        highlighted_title = _highlight(item["title"], keyword)
-        highlighted_desc  = _highlight(item["desc"],  keyword)
         st.markdown(f"""
         <a href="{item['link']}" target="_blank" style="text-decoration:none;display:block;">
             <div class="doc-card" style="border-color:{item['border']};border-left:3px solid {item['color']};">
                 <div class="doc-card-icon" style="background:{item['bg']};">{item['icon']}</div>
                 <div style="flex:1;">
-                    <div class="doc-card-title" style="color:{item['color']};">{highlighted_title}</div>
-                    <div class="doc-card-desc">{highlighted_desc}</div>
+                    <div class="doc-card-title" style="color:{item['color']};">{_highlight(item['title'], keyword)}</div>
+                    <div class="doc-card-desc">{_highlight(item['desc'], keyword)}</div>
                 </div>
                 <div class="doc-card-arrow" style="color:{item['color']};">↗</div>
             </div>
@@ -158,20 +200,19 @@ def _render_tan_binh(keyword: str = ""):
     )
 
 
-def _render_cau_hinh(keyword: str = ""):
-    """Hiển thị subfolder Cấu hình thiết bị, filter theo keyword."""
-    kw_lower = keyword.strip().lower()
-    _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    folder_dir = os.path.join(_base, "tailieu", "cau_hinh")
+# ──────────────────────────────────────────────────────────────
+#  Render subfolder: Cấu hình thiết bị
+# ──────────────────────────────────────────────────────────────
 
-    files_found = []
-    if os.path.exists(folder_dir):
-        for fname in sorted(os.listdir(folder_dir)):
-            ext = os.path.splitext(fname)[1].lower()
-            if ext in _SUPPORTED_EXT:
-                files_found.append((fname, ext, os.path.join(folder_dir, fname)))
+def _render_cau_hinh(keyword: str = "") -> None:
+    """
+    BUG FIX CHÍNH: _list_supported_files() luôn kiểm tra os.path.isdir()
+    trước khi os.listdir(), không còn crash trên Streamlit Cloud.
+    """
+    kw_lower   = keyword.strip().lower()
+    all_files  = _list_supported_files(_CAU_HINH_DIR)
 
-    if not files_found:
+    if not all_files:
         st.markdown(f"""
         <div class="doc-placeholder">
             <div style="font-size:2.2rem;margin-bottom:10px;">⚙️</div>
@@ -179,43 +220,39 @@ def _render_cau_hinh(keyword: str = ""):
             <span style="color:#8896A5;font-family:Sora,sans-serif;font-size:0.85rem;">
                 Đặt file PDF vào thư mục
                 <code style="background:#F0F3F8;padding:2px 7px;
-                border-radius:5px;color:#005DA3;">{folder_dir}</code>
+                border-radius:5px;color:#005DA3;">{_CAU_HINH_DIR}</code>
             </span>
         </div>""", unsafe_allow_html=True)
         return
 
-    # Filter theo keyword nếu có
+    # Lọc theo keyword nếu có
     if kw_lower:
-        filtered_files = []
-        for fname, ext, fpath in files_found:
-            meta = _get_pdf_meta(fname)
-            if _item_matches(meta, kw_lower) or kw_lower in fname.lower():
-                filtered_files.append((fname, ext, fpath))
-        if not filtered_files:
+        files_to_show = [
+            (fname, ext, fpath)
+            for fname, ext, fpath in all_files
+            if _item_matches(_get_pdf_meta(fname), kw_lower) or kw_lower in fname.lower()
+        ]
+        if not files_to_show:
             st.markdown(
                 '<div class="empty-state">😕 Không tìm thấy tài liệu cấu hình khớp với từ khóa.<br>'
                 '<small style="color:#B0BBC8;">Thử: <b>ax3000s</b>, <b>skyworth</b>, <b>wifi 6</b>, <b>đào tạo</b></small></div>',
                 unsafe_allow_html=True,
             )
             return
-        files_to_show = filtered_files
     else:
-        files_to_show = files_found
+        files_to_show = all_files
 
     for fname, ext, fpath in files_to_show:
         meta = _get_pdf_meta(fname)
-        highlighted_title = _highlight(meta["title"], keyword)
-        highlighted_desc  = _highlight(meta["desc"],  keyword)
-
         st.markdown(f"""
         <div class="doc-card" style="border-color:{meta['border']};
              border-left:3px solid {meta['color']};">
             <div class="doc-card-icon" style="background:{meta['bg']};">📄</div>
             <div style="flex:1;">
                 <div class="doc-card-title" style="color:{meta['color']};">
-                    {highlighted_title}
+                    {_highlight(meta['title'], keyword)}
                 </div>
-                <div class="doc-card-desc">{highlighted_desc}</div>
+                <div class="doc-card-desc">{_highlight(meta['desc'], keyword)}</div>
             </div>
         </div>""", unsafe_allow_html=True)
 
@@ -230,34 +267,30 @@ def _render_cau_hinh(keyword: str = ""):
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 
-def render_tai_lieu(keyword: str = ""):
+# ──────────────────────────────────────────────────────────────
+#  Entry point
+# ──────────────────────────────────────────────────────────────
+
+def render_tai_lieu(keyword: str = "") -> None:
     """Render toàn bộ tab Tài liệu gồm 2 subfolder, hỗ trợ tìm kiếm."""
-    _cau_hinh_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "tailieu", "cau_hinh"
-    )
-    cau_hinh_count = sum(
-        1 for f in os.listdir(_cau_hinh_dir)
-        if os.path.splitext(f)[1].lower() in _SUPPORTED_EXT
-    ) if os.path.isdir(_cau_hinh_dir) else 0
-    total = len(_TAN_BINH_SUBS) + cau_hinh_count
+    total = len(_TAN_BINH_ITEMS) + count_cau_hinh_files()
     render_section_header("📁", "Tài liệu", total)
 
     _, sf1, sf2, _ = st.columns([1, 1, 1, 1])
     for col, (label, sf_key) in zip([sf1, sf2], _SUBFOLDERS.items()):
         with col:
-            is_sf = st.session_state.active_subfolder == sf_key
+            is_active = st.session_state.active_subfolder == sf_key
             if st.button(
                 label, key=f"sf_{sf_key}",
-                type="primary" if is_sf else "secondary",
+                type="primary" if is_active else "secondary",
                 use_container_width=True,
             ):
                 st.session_state.active_subfolder = sf_key
                 st.rerun()
 
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
-    active_sf = st.session_state.active_subfolder
 
+    active_sf = st.session_state.active_subfolder
     if active_sf == "Tài liệu tân binh":
         _render_tan_binh(keyword)
     elif active_sf == "Cấu hình thiết bị":

@@ -1,27 +1,29 @@
 """
 views/quy_trinh.py
-Render section header + danh sách expander dùng chung
-cho tab "Quy trình" và tab "Xử lý sự cố".
+Render tab "Quy trình" và tab "Xử lý sự cố".
+Cung cấp helpers dùng chung: render_section_header, render_expander_list.
 """
 
 import os
+
 import streamlit as st
 import openpyxl
+
 from utils.highlight_text import highlight_text
 from excel_renderer import render_excel_file
 
-_BASE      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_XU_LY_DIR = os.path.join(_BASE, "tailieu", "xu_ly_su_co")
-_PPTX_PATH = os.path.join(_XU_LY_DIR, "CAC_VAN_DE_THUONG_GAP_Camera.pptx")
-_XLSX_PATH = os.path.join(_XU_LY_DIR, "Quy_hoach_ma_loi_FPT_Play.xlsx")
-_SUPPORTED = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
+_BASE       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_XU_LY_DIR  = os.path.join(_BASE, "tailieu", "xu_ly_su_co")
+_PPTX_PATH  = os.path.join(_XU_LY_DIR, "CAC_VAN_DE_THUONG_GAP_Camera.pptx")
+_XLSX_PATH  = os.path.join(_XU_LY_DIR, "Quy_hoach_ma_loi_FPT_Play.xlsx")
+_SUPPORTED  = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
 
 
 # ──────────────────────────────────────────────────────────────
 #  Helpers dùng chung
 # ──────────────────────────────────────────────────────────────
 
-def render_section_header(icon: str, title: str, count: int = None):
+def render_section_header(icon: str, title: str, count: int = None) -> None:
     """Hiển thị tiêu đề section kèm số lượng mục."""
     count_html = f"<span class='fpt-section-count'>{count} mục</span>" if count is not None else ""
     st.markdown(f"""
@@ -33,11 +35,11 @@ def render_section_header(icon: str, title: str, count: int = None):
     """, unsafe_allow_html=True)
 
 
-def render_expander_list(rows: list, keyword: str = "", show_empty: bool = True):
+def render_expander_list(rows: list, keyword: str = "", show_empty: bool = True) -> None:
     """
     Lọc danh sách theo keyword và hiển thị từng mục dưới dạng expander.
-    - Khi có keyword: tự động mở rộng (expanded=True) các mục khớp và highlight.
-    - show_empty=False → không hiện thông báo trống khi folder còn có tài liệu riêng.
+    - Khi có keyword: tự động mở rộng (expanded=True) và highlight.
+    - show_empty=False → không hiện thông báo trống (dùng khi folder còn tài liệu khác).
     """
     kw_lower = keyword.strip().lower()
     filtered = [
@@ -56,46 +58,32 @@ def render_expander_list(rows: list, keyword: str = "", show_empty: bool = True)
             )
         return
 
-    # Khi đang tìm kiếm → thêm anchor để JS có thể scroll đến
-    if kw_lower and filtered:
+    if kw_lower:
         st.markdown(
             '<div id="search-result-anchor" style="height:0;margin:0;padding:0;"></div>',
             unsafe_allow_html=True,
         )
 
+    auto_expand = bool(kw_lower)
     for row in filtered:
-        if row["ten"]:
-            # Highlight tên trong tiêu đề expander nếu khớp keyword
-            if kw_lower and kw_lower in row["ten"].lower():
-                # Thêm dấu hiệu trực quan vào title
-                expander_label = f"🔎  {row['ten']}"
-            else:
-                expander_label = f"🛠  {row['ten']}"
+        if not row["ten"]:
+            continue
+        label = f"🔎  {row['ten']}" if (kw_lower and kw_lower in row["ten"].lower()) else f"🛠  {row['ten']}"
+        with st.expander(label, expanded=auto_expand):
+            st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
 
-            # Tự động mở expander khi có từ khóa
-            auto_expand = bool(kw_lower)
-
-            with st.expander(expander_label, expanded=auto_expand):
-                st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
-
-    # Inject JS scroll khi có keyword và có kết quả
-    if kw_lower and filtered:
+    if kw_lower:
         st.markdown("""
         <script>
         (function() {
             function scrollToResults() {
                 var anchor = document.getElementById('search-result-anchor');
-                if (anchor) {
-                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
+                if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-            // Thử scroll sau khi render xong
             if (document.readyState === 'complete') {
                 setTimeout(scrollToResults, 300);
             } else {
-                window.addEventListener('load', function() {
-                    setTimeout(scrollToResults, 300);
-                });
+                window.addEventListener('load', function() { setTimeout(scrollToResults, 300); });
             }
         })();
         </script>
@@ -103,15 +91,14 @@ def render_expander_list(rows: list, keyword: str = "", show_empty: bool = True)
 
 
 # ──────────────────────────────────────────────────────────────
-#  Quy trình
+#  Tab Quy trình
 # ──────────────────────────────────────────────────────────────
 
-def render_quy_trinh(data: list, keyword: str = ""):
+def render_quy_trinh(data: list, keyword: str = "") -> None:
     """Render toàn bộ tab Quy trình."""
-    rows = [r for r in data if r["folder"] == "Quy trình"]
+    rows     = [r for r in data if r["folder"] == "Quy trình"]
     kw_lower = keyword.strip().lower()
 
-    # Khi tìm kiếm: chỉ đếm kết quả khớp
     if kw_lower:
         matched = [r for r in rows if kw_lower in r["ten"].lower() or kw_lower in r["buoc"].lower()]
         render_section_header("📂", "Quy trình", len(matched))
@@ -122,7 +109,7 @@ def render_quy_trinh(data: list, keyword: str = ""):
 
 
 # ──────────────────────────────────────────────────────────────
-#  Xử lý sự cố — tài liệu đính kèm
+#  Tab Xử lý sự cố — helpers
 # ──────────────────────────────────────────────────────────────
 
 def _doc_card_html(icon: str, title: str, desc: str,
@@ -139,7 +126,7 @@ def _doc_card_html(icon: str, title: str, desc: str,
 
 @st.cache_data(ttl=30)
 def _get_sheet_names(path: str) -> list:
-    """Đọc tên các Sheet trong file Excel. Cache 30s — tự cập nhật khi file thay đổi."""
+    """Đọc tên Sheet trong file Excel (cache 30s)."""
     try:
         wb = openpyxl.load_workbook(path, read_only=True)
         names = wb.sheetnames
@@ -149,13 +136,9 @@ def _get_sheet_names(path: str) -> list:
         return []
 
 
-def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str):
-    """
-    Hiển thị Excel với các nút tab theo tên Sheet.
-    Bấm nút → chỉ hiện Sheet đó.
-    Tự động cập nhật khi file Excel thay đổi (thêm/xóa/đổi tên sheet).
-    """
-    if not os.path.exists(xlsx_path):
+def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str) -> None:
+    """Hiển thị Excel với nút tab chọn Sheet, kèm nút tải về."""
+    if not os.path.isfile(xlsx_path):
         st.warning(f"⚠️ Chưa tìm thấy file: {os.path.basename(xlsx_path)}")
         return
 
@@ -176,9 +159,8 @@ def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str):
     )
     chunk = 4
     for i in range(0, len(sheet_names), chunk):
-        batch = sheet_names[i:i + chunk]
-        cols = st.columns(len(batch))
-        for col, sname in zip(cols, batch):
+        cols = st.columns(len(sheet_names[i:i + chunk]))
+        for col, sname in zip(cols, sheet_names[i:i + chunk]):
             with col:
                 if st.button(
                     sname,
@@ -207,8 +189,8 @@ def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str):
         )
 
 
-def _render_xu_ly_docs():
-    """Render 2 tài liệu: PPTX Camera + Excel mã lỗi FPT Play."""
+def _render_xu_ly_docs() -> None:
+    """Render 2 tài liệu đính kèm: PPTX Camera + Excel mã lỗi FPT Play."""
     st.markdown(
         "<hr style='border:none;border-top:1px solid #EDF0F5;margin:1.4rem 0 1.2rem 0;'>",
         unsafe_allow_html=True,
@@ -220,6 +202,7 @@ def _render_xu_ly_docs():
         unsafe_allow_html=True,
     )
 
+    # --- PPTX Camera ---
     st.markdown(
         _doc_card_html(
             icon="📷",
@@ -229,7 +212,7 @@ def _render_xu_ly_docs():
         ),
         unsafe_allow_html=True,
     )
-    if os.path.exists(_PPTX_PATH):
+    if os.path.isfile(_PPTX_PATH):
         with open(_PPTX_PATH, "rb") as f:
             st.download_button(
                 label="📥  Tải về — CAC_VAN_DE_THUONG_GAP_Camera.pptx",
@@ -243,6 +226,7 @@ def _render_xu_ly_docs():
 
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
+    # --- Excel mã lỗi FPT Play ---
     st.markdown(
         _doc_card_html(
             icon="📺",
@@ -255,16 +239,21 @@ def _render_xu_ly_docs():
     _render_excel_with_sheet_tabs(_XLSX_PATH, session_key="xu_ly_xlsx_sheet")
 
 
-def render_xu_ly_su_co(data: list, keyword: str = ""):
+# ──────────────────────────────────────────────────────────────
+#  Entry point
+# ──────────────────────────────────────────────────────────────
+
+def render_xu_ly_su_co(data: list, keyword: str = "") -> None:
     """Render toàn bộ tab Xử lý sự cố."""
     rows = [r for r in data if r["folder"] == "Xử lý sự cố"]
 
-    file_count = sum(
-        1 for f in os.listdir(_XU_LY_DIR)
-        if os.path.splitext(f)[1].lower() in _SUPPORTED
-    ) if os.path.isdir(_XU_LY_DIR) else 0
-    total = len(rows) + file_count
+    # BUG FIX: guard os.path.isdir() trước os.listdir()
+    file_count = (
+        sum(1 for f in os.listdir(_XU_LY_DIR)
+            if os.path.splitext(f)[1].lower() in _SUPPORTED)
+        if os.path.isdir(_XU_LY_DIR) else 0
+    )
 
-    render_section_header("🔧", "Xử lý sự cố", total)
+    render_section_header("🔧", "Xử lý sự cố", len(rows) + file_count)
     render_expander_list(rows, keyword, show_empty=(len(rows) > 0))
     _render_xu_ly_docs()

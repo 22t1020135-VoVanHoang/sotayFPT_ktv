@@ -1,9 +1,11 @@
 """
-SỔ TAY KTV FPT — Streamlit App
+app.py — Sổ Tay KTV FPT Telecom
+Entry point của ứng dụng Streamlit.
 """
 
 import base64
 import os
+
 import streamlit as st
 
 st.set_page_config(
@@ -13,14 +15,17 @@ st.set_page_config(
 )
 
 from styles import inject_css
-from data_loader import load_data, FILE_PATH
+from data_loader import load_data
 from views.quy_trinh import render_quy_trinh, render_xu_ly_su_co
 from views.ban_hang import render_ban_hang
-from views.tai_lieu import render_tai_lieu
+from views.tai_lieu import render_tai_lieu, count_cau_hinh_files
 
 inject_css()
 
-# ===== LOAD DỮ LIỆU =====
+# ──────────────────────────────────────────────────────────────
+#  Load dữ liệu
+# ──────────────────────────────────────────────────────────────
+
 try:
     DATA = load_data()
 except FileNotFoundError:
@@ -33,10 +38,19 @@ except Exception as e:
     st.error(f"❌ Lỗi đọc file SO_TAY_KTV.xlsx: {e}")
     st.stop()
 
-# ===== NAV =====
+# ──────────────────────────────────────────────────────────────
+#  Logo / Navbar
+# ──────────────────────────────────────────────────────────────
+
+_APP_BASE = os.path.dirname(os.path.abspath(__file__))
+
+
 def _load_logo_b64(filename: str = "logo.png") -> str:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    for path in [os.path.join(base_dir, filename), os.path.join(base_dir, "tailieu", filename)]:
+    """Tìm và mã hóa logo thành base64."""
+    for path in [
+        os.path.join(_APP_BASE, filename),
+        os.path.join(_APP_BASE, "tailieu", filename),
+    ]:
         if os.path.isfile(path):
             try:
                 with open(path, "rb") as f:
@@ -45,11 +59,12 @@ def _load_logo_b64(filename: str = "logo.png") -> str:
                 return ""
     return ""
 
+
 _logo_b64 = _load_logo_b64()
 _logo_img = (
     f'<img src="data:image/png;base64,{_logo_b64}" class="fpt-nav-logo" alt="FPT Telecom"/>'
-    if _logo_b64 else
-    '<span style="font-weight:800;color:#F26F21;font-size:1.1rem;">FPT</span>'
+    if _logo_b64
+    else '<span style="font-weight:800;color:#F26F21;font-size:1.1rem;">FPT</span>'
 )
 
 st.markdown(f"""
@@ -64,7 +79,10 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ===== HERO =====
+# ──────────────────────────────────────────────────────────────
+#  Hero
+# ──────────────────────────────────────────────────────────────
+
 st.markdown("""
 <div class="fpt-hero">
     <span class="fpt-hero-eyebrow">Sổ tay kỹ thuật viên FPT Telecom</span>
@@ -74,6 +92,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
+
+# ──────────────────────────────────────────────────────────────
+#  Thanh tìm kiếm
+# ──────────────────────────────────────────────────────────────
+
 _, col_search, _ = st.columns([0.5, 3, 0.5])
 with col_search:
     keyword = st.text_input(
@@ -85,110 +108,114 @@ kw = keyword.strip()
 
 st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 
-# ===== SESSION STATE =====
-if "active_folder" not in st.session_state:
-    st.session_state.active_folder = "Quy trình"
-if "active_subfolder" not in st.session_state:
-    st.session_state.active_subfolder = "Tài liệu tân binh"
-if "_last_kw" not in st.session_state:
-    st.session_state._last_kw = ""
+# ──────────────────────────────────────────────────────────────
+#  Session state
+# ──────────────────────────────────────────────────────────────
 
-_APP_BASE = os.path.dirname(os.path.abspath(__file__))
+st.session_state.setdefault("active_folder",    "Quy trình")
+st.session_state.setdefault("active_subfolder", "Tài liệu tân binh")
+st.session_state.setdefault("_last_kw",         "")
 
-# ===== HÀM ĐẾM KẾT QUẢ CHO TỪNG TAB =====
-# Nội dung tĩnh của tab Tài liệu — dùng để tìm kiếm
-_TAI_LIEU_STATIC_CONTENT = [
-    "tài liệu tân binh",
-    "kỹ năng",
-    "chuyên môn",
-    "chính sách chế độ",
-    "cấu hình thiết bị",
-    "internet hub ax3000s",
-    "skyworth wifi6",
-    "hướng dẫn sử dụng",
-    "đào tạo",
-    "mesh wifi",
+# ──────────────────────────────────────────────────────────────
+#  Nội dung tĩnh dùng cho tìm kiếm
+# ──────────────────────────────────────────────────────────────
+
+_XU_LY_STATIC_TAGS = [
+    "camera fpt life", "các vấn đề thường gặp", "mã lỗi fpt play",
+    "smarttv", "android", "ios", "firmware",
 ]
 
-# Nội dung tĩnh của tab Xử lý sự cố
-_XU_LY_STATIC_CONTENT = [
-    "camera fpt life",
-    "các vấn đề thường gặp",
-    "mã lỗi fpt play",
-    "smarttv",
-    "android",
-    "ios",
-    "firmware",
+_TAI_LIEU_STATIC_TAGS = [
+    "tài liệu tân binh", "kỹ năng", "chuyên môn", "chính sách chế độ",
+    "cấu hình thiết bị", "internet hub ax3000s", "skyworth wifi6",
+    "hướng dẫn sử dụng", "đào tạo", "mesh wifi",
 ]
 
-def _count_hits_in_folder(folder_key: str, kw_lower: str) -> int:
-    """Đếm số kết quả khớp trong một folder, bao gồm cả nội dung tĩnh."""
+# ──────────────────────────────────────────────────────────────
+#  Đếm kết quả tìm kiếm theo folder
+# ──────────────────────────────────────────────────────────────
+
+def _count_hits(folder_key: str, kw_lower: str) -> int:
+    """Đếm số mục khớp keyword trong một folder."""
     if not kw_lower:
         return 0
 
     if folder_key in ("Quy trình", "Bán hàng"):
-        rows = [r for r in DATA if r["folder"] == folder_key]
         return sum(
-            1 for r in rows
-            if kw_lower in r["ten"].lower() or kw_lower in r["buoc"].lower()
+            1 for r in DATA
+            if r["folder"] == folder_key
+            and (kw_lower in r["ten"].lower() or kw_lower in r["buoc"].lower())
         )
 
     if folder_key == "Xử lý sự cố":
-        rows = [r for r in DATA if r["folder"] == folder_key]
-        data_hits = sum(
-            1 for r in rows
-            if kw_lower in r["ten"].lower() or kw_lower in r["buoc"].lower()
+        data_hits   = sum(
+            1 for r in DATA
+            if r["folder"] == folder_key
+            and (kw_lower in r["ten"].lower() or kw_lower in r["buoc"].lower())
         )
-        static_hits = sum(1 for s in _XU_LY_STATIC_CONTENT if kw_lower in s)
+        static_hits = sum(1 for s in _XU_LY_STATIC_TAGS if kw_lower in s)
         return data_hits + static_hits
 
     if folder_key == "Tài liệu":
-        # Tìm trong nội dung tĩnh của tab Tài liệu
-        return sum(1 for s in _TAI_LIEU_STATIC_CONTENT if kw_lower in s)
+        return sum(1 for s in _TAI_LIEU_STATIC_TAGS if kw_lower in s)
 
     return 0
 
 
-# ===== SMART SEARCH: tự động chuyển tab =====
+def _count_total(folder_key: str) -> int:
+    """Đếm tổng số mục trong một folder (không theo keyword)."""
+    _SUPPORTED = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
+
+    if folder_key == "Xử lý sự cố":
+        _xu_ly_dir = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
+        # BUG FIX: guard os.path.isdir() trước os.listdir()
+        file_count = (
+            sum(1 for f in os.listdir(_xu_ly_dir)
+                if os.path.splitext(f)[1].lower() in _SUPPORTED)
+            if os.path.isdir(_xu_ly_dir) else 0
+        )
+        return sum(1 for r in DATA if r["folder"] == folder_key) + file_count
+
+    if folder_key == "Tài liệu":
+        return 3 + count_cau_hinh_files()  # 3 mục tân binh + file cấu hình
+
+    return sum(1 for r in DATA if r["folder"] == folder_key)
+
+
+# ──────────────────────────────────────────────────────────────
+#  Smart search: tự động chuyển tab phù hợp nhất
+# ──────────────────────────────────────────────────────────────
+
+FOLDER_KEYS = ["Quy trình", "Xử lý sự cố", "Bán hàng", "Tài liệu"]
+
 if kw and kw != st.session_state._last_kw:
-    kw_lower = kw.lower()
-    folder_order = ["Quy trình", "Xử lý sự cố", "Bán hàng", "Tài liệu"]
-    best_folder = None
-    best_count = 0
-    for folder_key in folder_order:
-        count = _count_hits_in_folder(folder_key, kw_lower)
-        if count > best_count:
-            best_count = count
-            best_folder = folder_key
-    if best_folder:
+    kw_lower   = kw.lower()
+    best_folder = max(FOLDER_KEYS, key=lambda fk: _count_hits(fk, kw_lower), default=None)
+    if best_folder and _count_hits(best_folder, kw_lower) > 0:
         st.session_state.active_folder = best_folder
-        # Nếu nhảy vào Tài liệu → tự chọn subfolder phù hợp
         if best_folder == "Tài liệu":
             cau_hinh_kw = ["cấu hình", "thiết bị", "ax3000s", "skyworth", "wifi6", "internet hub", "đào tạo", "mesh"]
-            if any(k in kw_lower for k in cau_hinh_kw):
-                st.session_state.active_subfolder = "Cấu hình thiết bị"
-            else:
-                st.session_state.active_subfolder = "Tài liệu tân binh"
+            st.session_state.active_subfolder = (
+                "Cấu hình thiết bị"
+                if any(k in kw_lower for k in cau_hinh_kw)
+                else "Tài liệu tân binh"
+            )
     st.session_state._last_kw = kw
 
 if not kw:
     st.session_state._last_kw = ""
 
-# ===== BANNER KẾT QUẢ TÌM KIẾM =====
+# ──────────────────────────────────────────────────────────────
+#  Banner kết quả tìm kiếm
+# ──────────────────────────────────────────────────────────────
+
 if kw:
-    kw_lower = kw.lower()
-    folder_order = ["Quy trình", "Xử lý sự cố", "Bán hàng", "Tài liệu"]
-    total_hits = {
-        fk: _count_hits_in_folder(fk, kw_lower)
-        for fk in folder_order
-    }
+    kw_lower    = kw.lower()
+    total_hits  = {fk: _count_hits(fk, kw_lower) for fk in FOLDER_KEYS}
     grand_total = sum(total_hits.values())
 
     if grand_total > 0:
-        parts = []
-        for fk, cnt in total_hits.items():
-            if cnt > 0:
-                parts.append(f"<b>{fk}</b>: {cnt} kết quả")
+        parts = [f"<b>{fk}</b>: {cnt} kết quả" for fk, cnt in total_hits.items() if cnt > 0]
         st.markdown(
             f"<div style='text-align:center;font-size:0.82rem;color:#005DA3;"
             f"font-family:Sora,sans-serif;margin-bottom:4px;'>"
@@ -203,29 +230,10 @@ if kw:
             unsafe_allow_html=True,
         )
 
-# ===== ĐẾM TỔNG SỐ MỤC (không theo kw) =====
-def _count_folder_total(folder_key: str) -> int:
-    if folder_key == "Xử lý sự cố":
-        rows = sum(1 for r in DATA if r["folder"] == folder_key)
-        _xu_ly_dir = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
-        _supported = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
-        files = sum(
-            1 for f in os.listdir(_xu_ly_dir)
-            if os.path.splitext(f)[1].lower() in _supported
-        ) if os.path.isdir(_xu_ly_dir) else 0
-        return rows + files
-    if folder_key == "Tài liệu":
-        tan_binh = 3
-        _cau_hinh_dir = os.path.join(_APP_BASE, "tailieu", "cau_hinh")
-        _supported = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
-        cau_hinh = sum(
-            1 for f in os.listdir(_cau_hinh_dir)
-            if os.path.splitext(f)[1].lower() in _supported
-        ) if os.path.isdir(_cau_hinh_dir) else 0
-        return tan_binh + cau_hinh
-    return sum(1 for r in DATA if r["folder"] == folder_key)
+# ──────────────────────────────────────────────────────────────
+#  Folder tabs
+# ──────────────────────────────────────────────────────────────
 
-# ===== FOLDER TABS =====
 FOLDERS = {
     "📂  Quy trình":    "Quy trình",
     "🔧  Xử lý sự cố": "Xử lý sự cố",
@@ -236,10 +244,10 @@ FOLDERS = {
 _, c1, c2, c3, c4, _ = st.columns([0.5, 1, 1, 1, 1, 0.5])
 for col, (label, folder_key) in zip([c1, c2, c3, c4], FOLDERS.items()):
     with col:
-        total = _count_folder_total(folder_key)
+        total = _count_total(folder_key)
         if kw:
-            hits = _count_hits_in_folder(folder_key, kw.lower())
-            count_label = f"  ({hits}/{total})" if hits else f"  (0/{total})"
+            hits        = _count_hits(folder_key, kw.lower())
+            count_label = f"  ({hits}/{total})"
         else:
             count_label = f"  ({total})"
         is_active = st.session_state.active_folder == folder_key
@@ -258,7 +266,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ===== NỘI DUNG TỪNG FOLDER =====
+# ──────────────────────────────────────────────────────────────
+#  Nội dung từng folder
+# ──────────────────────────────────────────────────────────────
+
 active = st.session_state.active_folder
 _, col_main, _ = st.columns([0.15, 3.7, 0.15])
 with col_main:
