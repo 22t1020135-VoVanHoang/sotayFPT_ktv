@@ -21,9 +21,8 @@ BANG_GIA_FILE = _find_bh_file("Chuong_Trinh_Ban_Hang.xlsx")
 def render_ban_hang(data: list, keyword: str = ""):
     """Render toàn bộ tab Bán hàng."""
     rows = [r for r in data if r["folder"] == "Bán hàng"]
-    render_section_header("🛒", "Bán hàng", len(rows))
+    kw_lower = keyword.strip().lower()
 
-    kw_lower = keyword.lower()
     filtered = [
         r for r in rows
         if not kw_lower
@@ -31,17 +30,39 @@ def render_ban_hang(data: list, keyword: str = ""):
         or kw_lower in r["buoc"].lower()
     ]
 
+    # Header: hiện số kết quả khi tìm kiếm
+    if kw_lower:
+        render_section_header("🛒", "Bán hàng", len(filtered))
+    else:
+        render_section_header("🛒", "Bán hàng", len(rows))
+
     if not filtered:
         st.markdown(
-            '<div class="empty-state">😕 Không tìm thấy kết quả nào.</div>',
+            '<div class="empty-state">😕 Không tìm thấy kết quả nào.<br>'
+            '<small style="color:#B0BBC8;font-size:0.8rem">Thử từ khóa khác.</small></div>',
             unsafe_allow_html=True,
         )
         return
 
+    # Scroll anchor khi có tìm kiếm
+    if kw_lower:
+        st.markdown(
+            '<div id="search-result-anchor" style="height:0;margin:0;padding:0;"></div>',
+            unsafe_allow_html=True,
+        )
+
     for row in filtered:
         if row["ten"]:
-            with st.expander(f"🛠  {row['ten']}"):
-                st.markdown(highlight_text(row["buoc"]), unsafe_allow_html=True)
+            # Đánh dấu kết quả khớp
+            if kw_lower and kw_lower in row["ten"].lower():
+                expander_label = f"🔎  {row['ten']}"
+            else:
+                expander_label = f"🛠  {row['ten']}"
+
+            auto_expand = bool(kw_lower)
+
+            with st.expander(expander_label, expanded=auto_expand):
+                st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
 
                 if row["ten"].strip() == "Chương trình bán hàng":
                     st.markdown(
@@ -56,3 +77,25 @@ def render_ban_hang(data: list, keyword: str = ""):
                             f"⚠️ Chưa có file **{BANG_GIA_FILE}**. "
                             "Hãy đặt file vào cùng thư mục với app."
                         )
+
+    # JS scroll đến kết quả
+    if kw_lower and filtered:
+        st.markdown("""
+        <script>
+        (function() {
+            function scrollToResults() {
+                var anchor = document.getElementById('search-result-anchor');
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+            if (document.readyState === 'complete') {
+                setTimeout(scrollToResults, 300);
+            } else {
+                window.addEventListener('load', function() {
+                    setTimeout(scrollToResults, 300);
+                });
+            }
+        })();
+        </script>
+        """, unsafe_allow_html=True)

@@ -1,26 +1,39 @@
 """
 utils/highlight_text.py
-Hàm tô màu nội dung văn bản trong expander:
-OK, Notok, Ghi chú, B1/B2..., TH1/TH2...
+Highlight từ khóa tìm kiếm trong nội dung văn bản.
 """
 
 import re
+import html as html_lib
 
 
-def highlight_text(text: str) -> str:
+def highlight_text(text: str, keyword: str = "") -> str:
     """
-    Chuyển đổi văn bản thuần thành HTML có màu,
-    giúp kỹ thuật viên đọc nhanh hơn.
+    Highlight keyword trong text bằng thẻ <mark>.
+    - Nếu keyword rỗng: trả về text gốc (đã escape HTML).
+    - Không phân biệt hoa/thường.
+    - Giữ nguyên ký tự xuống dòng → <br>.
     """
-    html = str(text)
-    html = html.replace("Notok",   "<span class='tag-err'>❌ Notok</span>")
-    html = html.replace("OK",      "<span class='tag-ok'>✅ OK</span>")
-    html = html.replace("Ghi chú", "<span class='tag-note'>📝 Ghi chú</span>")
-    html = html.replace(
-        "chốt phương án và số tiền thu nếu có",
-        "<strong style='color:#c04800'>chốt phương án và số tiền thu nếu có</strong>",
-    )
-    html = re.sub(r'\b(B\d+)\b',  r"<strong style='color:#005DA3'>\1</strong>", html)
-    html = re.sub(r'\b(TH\d+)\b', r"<strong style='color:#1a7a3c'>\1</strong>", html)
-    html = html.replace("\n", "<br>")
-    return html
+    if not text:
+        return ""
+
+    # Escape HTML trước để tránh XSS
+    escaped = html_lib.escape(text)
+
+    if not keyword or not keyword.strip():
+        # Không có keyword → chỉ chuyển newline thành <br>
+        return escaped.replace("\n", "<br>")
+
+    kw = keyword.strip()
+    # Escape ký tự đặc biệt trong regex
+    pattern = re.compile(re.escape(kw), re.IGNORECASE)
+
+    def replacer(m):
+        return (
+            f'<mark style="background:#FFF3CD;color:#856404;'
+            f'padding:1px 3px;border-radius:3px;font-weight:600;">'
+            f'{html_lib.escape(m.group())}</mark>'
+        )
+
+    highlighted = pattern.sub(replacer, escaped)
+    return highlighted.replace("\n", "<br>")
