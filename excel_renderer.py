@@ -1,7 +1,12 @@
 """
 excel_renderer.py
-Chứa toàn bộ logic đọc file Excel và render thành HTML inline.
-Bao gồm: xử lý màu sắc ô, merged cells, cache, thead/tbody, sticky column.
+Render file Excel thành HTML table tối ưu mobile.
+
+Nguyên tắc chống lỗi bị-bẻ-dọc trên mobile:
+  - white-space:nowrap và min-width nhúng TRỰC TIẾP vào style="" của mỗi ô
+    (không phụ thuộc CSS class bên ngoài bị Streamlit override)
+  - Wrapper div dùng overflow-x:auto inline style để đảm bảo scroll ngang
+  - width:max-content trên <table> để bảng không bị ép nhỏ
 """
 
 import os
@@ -9,7 +14,9 @@ import streamlit as st
 import openpyxl
 
 
-# ===== HELPERS — MÀU SẮC EXCEL =====
+# ═══════════════════════════════════════════════════════════
+#  HELPERS — MÀU SẮC EXCEL
+# ═══════════════════════════════════════════════════════════
 
 _OFFICE_THEME_COLORS = {
     0: (0,   0,   0),
@@ -64,11 +71,13 @@ def _resolve_font_color(font):
     return None
 
 
-def _get_cell_style(cell) -> dict:
+def _get_cell_bg_and_font(cell) -> dict:
+    """Trả về dict style từ màu nền và font của ô Excel."""
     styles = {}
     has_bg = False
     bg_rgb = None
 
+    # Màu nền
     try:
         fg = cell.fill.fgColor.rgb if cell.fill and cell.fill.fgColor else None
         bg_rgb = _hex_to_rgb(fg) if fg else None
@@ -78,12 +87,14 @@ def _get_cell_style(cell) -> dict:
     except Exception:
         pass
 
+    # In đậm
     try:
         if cell.font and cell.font.bold:
             styles["font-weight"] = "700"
     except Exception:
         pass
 
+    # Căn lề ngang
     try:
         align = cell.alignment
         if align:
@@ -91,13 +102,10 @@ def _get_cell_style(cell) -> dict:
                 styles["text-align"] = "center"
             elif align.horizontal == "right":
                 styles["text-align"] = "right"
-            else:
-                styles["text-align"] = "left"
-            if align.vertical == "top":
-                styles["vertical-align"] = "top"
     except Exception:
         pass
 
+    # Màu chữ
     font_rgb = _resolve_font_color(getattr(cell, "font", None))
     if has_bg and bg_rgb:
         lum = 0.299 * bg_rgb[0] + 0.587 * bg_rgb[1] + 0.114 * bg_rgb[2]
@@ -110,20 +118,66 @@ def _get_cell_style(cell) -> dict:
     return styles
 
 
-# ===== RENDER EXCEL → HTML =====
+# ═══════════════════════════════════════════════════════════
+#  RENDER EXCEL → HTML
+# ═══════════════════════════════════════════════════════════
+
+# Style cố định nhúng thẳng vào mỗi ô — không bị Streamlit override
+_BASE_TD_STYLE = (
+    "white-space:nowrap;"          # KHÔNG bẻ dọc chữ
+    "min-width:72px;"              # chiều rộng tối thiểu mỗi ô
+    "padding:9px 14px;"
+    "border:1px solid #E4E9F0;"
+    "vertical-align:middle;"
+    "font-size:0.9rem;"
+    "font-family:'Sora',sans-serif;"
+    "line-height:1.5;"
+)
+
+_BASE_TH_STYLE = (
+    "white-space:nowrap;"
+    "min-width:72px;"
+    "padding:10px 14px;"
+    "border:1px solid #D0D8E8;"
+    "border-bottom:2px solid #B0BEEF;"
+    "vertical-align:middle;"
+    "font-size:0.88rem;"
+    "font-family:'Sora',sans-serif;"
+    "font-weight:700;"
+    "text-align:center;"
+    "background-color:#EAF0FB;"
+    "color:#1a2a3a;"
+)
+
+# Wrapper div — inline style đảm bảo scroll ngang bất kể CSS class
+_WRAPPER_STYLE = (
+    "overflow-x:auto;"
+    "-webkit-overflow-scrolling:touch;"
+    "border-radius:12px;"
+    "border:1px solid #E4E9F0;"
+    "box-shadow:0 2px 12px rgba(0,0,0,0.06);"
+    "margin-top:8px;"
+)
+
+# <table> — width:max-content là chìa khóa: bảng không bị ép nhỏ
+_TABLE_STYLE = (
+    "border-collapse:collapse;"
+    "width:max-content;"           # QUAN TRỌNG: không ép thu nhỏ
+    "min-width:100%;"
+    "font-family:'Sora',sans-serif;"
+)
+
 
 def _render_ws_html(ws, css_class: str = "xl-wrap") -> str:
     """
-    Render một worksheet thành HTML table.
-    - Hàng đầu tiên có nội dung → <thead> với <th>
-    - Các hàng còn lại → <tbody> với <td>
-    - width: max-content để không ép thu nhỏ → scroll ngang thay thế
-    - Cột đầu tiên sticky để dễ theo dõi khi scroll ngang trên mobile
+    Render một worksheet → HTML string.
+    Mọi style quan trọng (nowrap, min-width, padding) đều
+    được nhúng trực tiếp vào attribute style="" của từng ô.
     """
     max_row = ws.max_row
     max_col = ws.max_column
 
-    # ── Xây dựng merged cell maps ──
+    # ── Merged cells ──
     skip_map: dict = {}
     span_map: dict = {}
     for rng in ws.merged_cells.ranges:
@@ -135,14 +189,14 @@ def _render_ws_html(ws, css_class: str = "xl-wrap") -> str:
                 if (r, c) != (r0, c0):
                     skip_map.setdefault(r, {})[c] = True
 
-    # ── Tìm hàng bắt đầu thực sự ──
+    # ── Tìm hàng đầu có dữ liệu ──
     actual_start = 1
     for r in range(1, max_row + 1):
         if any(ws.cell(r, c).value is not None for c in range(1, max_col + 1)):
             actual_start = r
             break
 
-    # ── Lọc các hàng có nội dung ──
+    # ── Lọc hàng có nội dung ──
     content_rows = [
         r for r in range(actual_start, max_row + 1)
         if any(
@@ -153,71 +207,78 @@ def _render_ws_html(ws, css_class: str = "xl-wrap") -> str:
     ]
 
     if not content_rows:
-        return f'<div class="{css_class}"><p style="padding:1rem;color:#888">Không có dữ liệu.</p></div>'
+        return f'<div style="{_WRAPPER_STYLE}"><p style="padding:1rem;color:#888">Không có dữ liệu.</p></div>'
 
-    is_bg    = (css_class == "bg-excel-wrap")
-    wrap_cls = css_class if is_bg else "xl-wrap"
-    tbl_cls  = ' class="bg-excel"' if is_bg else ""
+    def _cell_html(r: int, c: int, tag: str) -> str:
+        """Render một ô thành <td> hoặc <th> với full inline style."""
+        cell = ws.cell(r, c)
+        text = "" if cell.value is None else str(cell.value).strip().replace("\n", "<br>")
 
-    def _render_row(r: int, tag: str = "td") -> str:
-        """Render một hàng, dùng tag <td> hoặc <th>."""
-        cells = []
-        for c in range(1, max_col + 1):
-            if skip_map.get(r, {}).get(c):
-                continue
-            cell = ws.cell(r, c)
-            text = "" if cell.value is None else str(cell.value).strip().replace("\n", "<br>")
+        rs, cs_ = span_map.get((r, c), (1, 1))
+        span_attrs = ""
+        if rs > 1:
+            span_attrs += f' rowspan="{rs}"'
+        if cs_ > 1:
+            span_attrs += f' colspan="{cs_}"'
 
-            rs, cs_ = span_map.get((r, c), (1, 1))
-            span_attrs = ""
-            if rs > 1:
-                span_attrs += f' rowspan="{rs}"'
-            if cs_ > 1:
-                span_attrs += f' colspan="{cs_}"'
+        # Style gốc từ Excel
+        excel_styles = _get_cell_bg_and_font(cell)
 
-            style_dict = _get_cell_style(cell)
-
-            # <th> luôn in đậm
-            if tag == "th":
-                style_dict.setdefault("font-weight", "700")
-
-            # Tô màu số tiền trong <td>
-            if tag == "td" and text and "background-color" not in style_dict:
+        if tag == "th":
+            # Header: bắt đầu từ base TH style, đè lên màu Excel nếu có
+            style = _BASE_TH_STYLE
+            if "background-color" in excel_styles:
+                style += f"background-color:{excel_styles['background-color']};"
+            if "color" in excel_styles:
+                style += f"color:{excel_styles['color']};"
+        else:
+            # Data cell: bắt đầu từ base TD style
+            style = _BASE_TD_STYLE
+            for k, v in excel_styles.items():
+                style += f"{k}:{v};"
+            # Tô màu số tiền nếu không có màu nền từ Excel
+            if text and "background-color" not in excel_styles:
                 if (
                     any(k in text for k in ["K", "đ", "VND", "%"])
                     and any(ch.isdigit() for ch in text)
                 ):
-                    style_dict["color"] = "#c04800"
-                    style_dict["font-weight"] = "700"
+                    style += "color:#c04800;font-weight:700;"
 
-            style_str  = ";".join(f"{k}:{v}" for k, v in style_dict.items())
-            style_attr = f' style="{style_str}"' if style_str else ""
-            cells.append(f"<{tag}{span_attrs}{style_attr}>{text}</{tag}>")
-        return "<tr>" + "".join(cells) + "</tr>"
+        return f"<{tag}{span_attrs} style=\"{style}\">{text}</{tag}>"
 
-    parts = [f'<div class="{wrap_cls}"><table{tbl_cls}>']
+    def _render_row(r: int, tag: str) -> str:
+        cells = "".join(
+            _cell_html(r, c, tag)
+            for c in range(1, max_col + 1)
+            if not skip_map.get(r, {}).get(c)
+        )
+        return f"<tr>{cells}</tr>"
 
-    # ── THEAD: hàng đầu tiên ──
-    parts.append("<thead>")
-    parts.append(_render_row(content_rows[0], tag="th"))
-    parts.append("</thead>")
-
-    # ── TBODY: các hàng còn lại ──
-    parts.append("<tbody>")
+    # ── Ghép HTML ──
+    parts = [
+        f'<div style="{_WRAPPER_STYLE}">',
+        f'<table style="{_TABLE_STYLE}">',
+        "<thead>",
+        _render_row(content_rows[0], tag="th"),
+        "</thead>",
+        "<tbody>",
+    ]
     for r in content_rows[1:]:
         parts.append(_render_row(r, tag="td"))
-    parts.append("</tbody>")
+    parts.append("</tbody></table></div>")
 
-    parts.append("</table></div>")
     return "".join(parts)
 
+
+# ═══════════════════════════════════════════════════════════
+#  PUBLIC API
+# ═══════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=30)
 def render_excel_file(file_path: str, css_class: str = "xl-wrap") -> list:
     """
     Đọc file Excel và render từng sheet thành HTML.
-    Kết quả được cache 30 giây.
-    Trả về: list of (sheet_name, html_string)
+    Trả về list of (sheet_name, html_string). Cache 30 giây.
     """
     if not os.path.exists(file_path):
         return [("Lỗi", f"<p style='color:red'>❌ Không tìm thấy file: <code>{file_path}</code></p>")]
@@ -229,10 +290,7 @@ def render_excel_file(file_path: str, css_class: str = "xl-wrap") -> list:
 
 
 def show_excel_inline(file_path: str, css_class: str = "xl-wrap"):
-    """
-    Hiển thị file Excel inline trong Streamlit,
-    kèm nút tải về phía dưới.
-    """
+    """Hiển thị file Excel inline trong Streamlit, kèm nút tải về."""
     sheets = render_excel_file(file_path, css_class)
     multi  = len(sheets) > 1
     for name, html in sheets:
