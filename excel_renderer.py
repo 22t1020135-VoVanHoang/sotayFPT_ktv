@@ -1,7 +1,7 @@
 """
 excel_renderer.py
 Chứa toàn bộ logic đọc file Excel và render thành HTML inline.
-Bao gồm: xử lý màu sắc ô, merged cells, cache, và hàm show_excel_inline.
+Bao gồm: xử lý màu sắc ô, merged cells, cache, thead/tbody, sticky column.
 """
 
 import os
@@ -113,9 +113,17 @@ def _get_cell_style(cell) -> dict:
 # ===== RENDER EXCEL → HTML =====
 
 def _render_ws_html(ws, css_class: str = "xl-wrap") -> str:
+    """
+    Render một worksheet thành HTML table.
+    - Hàng đầu tiên có nội dung → <thead> với <th>
+    - Các hàng còn lại → <tbody> với <td>
+    - width: max-content để không ép thu nhỏ → scroll ngang thay thế
+    - Cột đầu tiên sticky để dễ theo dõi khi scroll ngang trên mobile
+    """
     max_row = ws.max_row
     max_col = ws.max_column
 
+    # ── Xây dựng merged cell maps ──
     skip_map: dict = {}
     span_map: dict = {}
     for rng in ws.merged_cells.ranges:
@@ -127,29 +135,33 @@ def _render_ws_html(ws, css_class: str = "xl-wrap") -> str:
                 if (r, c) != (r0, c0):
                     skip_map.setdefault(r, {})[c] = True
 
+    # ── Tìm hàng bắt đầu thực sự ──
     actual_start = 1
     for r in range(1, max_row + 1):
         if any(ws.cell(r, c).value is not None for c in range(1, max_col + 1)):
             actual_start = r
             break
 
-    if css_class == "bg-excel-wrap":
-        wrap_open = '<div class="bg-excel-wrap"><table class="bg-excel"><tbody>'
-    else:
-        wrap_open = '<div class="xl-wrap"><table><tbody>'
-
-    parts = [wrap_open]
-    for r in range(actual_start, max_row + 1):
-        row_has_content = any(
-            not skip_map.get(r, {}).get(c) and (
-                ws.cell(r, c).value is not None or (r, c) in span_map
-            )
+    # ── Lọc các hàng có nội dung ──
+    content_rows = [
+        r for r in range(actual_start, max_row + 1)
+        if any(
+            not skip_map.get(r, {}).get(c)
+            and (ws.cell(r, c).value is not None or (r, c) in span_map)
             for c in range(1, max_col + 1)
         )
-        if not row_has_content:
-            continue
+    ]
 
-        parts.append("<tr>")
+    if not content_rows:
+        return f'<div class="{css_class}"><p style="padding:1rem;color:#888">Không có dữ liệu.</p></div>'
+
+    is_bg    = (css_class == "bg-excel-wrap")
+    wrap_cls = css_class if is_bg else "xl-wrap"
+    tbl_cls  = ' class="bg-excel"' if is_bg else ""
+
+    def _render_row(r: int, tag: str = "td") -> str:
+        """Render một hàng, dùng tag <td> hoặc <th>."""
+        cells = []
         for c in range(1, max_col + 1):
             if skip_map.get(r, {}).get(c):
                 continue
@@ -158,27 +170,45 @@ def _render_ws_html(ws, css_class: str = "xl-wrap") -> str:
 
             rs, cs_ = span_map.get((r, c), (1, 1))
             span_attrs = ""
-            if rs > 1: span_attrs += f' rowspan="{rs}"'
-            if cs_ > 1: span_attrs += f' colspan="{cs_}"'
+            if rs > 1:
+                span_attrs += f' rowspan="{rs}"'
+            if cs_ > 1:
+                span_attrs += f' colspan="{cs_}"'
 
             style_dict = _get_cell_style(cell)
 
-            if text and "background-color" not in style_dict:
-                is_money = (
+            # <th> luôn in đậm
+            if tag == "th":
+                style_dict.setdefault("font-weight", "700")
+
+            # Tô màu số tiền trong <td>
+            if tag == "td" and text and "background-color" not in style_dict:
+                if (
                     any(k in text for k in ["K", "đ", "VND", "%"])
                     and any(ch.isdigit() for ch in text)
-                )
-                if is_money:
+                ):
                     style_dict["color"] = "#c04800"
                     style_dict["font-weight"] = "700"
 
-            style_str = ";".join(f"{k}:{v}" for k, v in style_dict.items())
+            style_str  = ";".join(f"{k}:{v}" for k, v in style_dict.items())
             style_attr = f' style="{style_str}"' if style_str else ""
-            parts.append(f"<td{span_attrs}{style_attr}>{text}</td>")
+            cells.append(f"<{tag}{span_attrs}{style_attr}>{text}</{tag}>")
+        return "<tr>" + "".join(cells) + "</tr>"
 
-        parts.append("</tr>")
+    parts = [f'<div class="{wrap_cls}"><table{tbl_cls}>']
 
-    parts.append("</tbody></table></div>")
+    # ── THEAD: hàng đầu tiên ──
+    parts.append("<thead>")
+    parts.append(_render_row(content_rows[0], tag="th"))
+    parts.append("</thead>")
+
+    # ── TBODY: các hàng còn lại ──
+    parts.append("<tbody>")
+    for r in content_rows[1:]:
+        parts.append(_render_row(r, tag="td"))
+    parts.append("</tbody>")
+
+    parts.append("</table></div>")
     return "".join(parts)
 
 
@@ -204,7 +234,7 @@ def show_excel_inline(file_path: str, css_class: str = "xl-wrap"):
     kèm nút tải về phía dưới.
     """
     sheets = render_excel_file(file_path, css_class)
-    multi = len(sheets) > 1
+    multi  = len(sheets) > 1
     for name, html in sheets:
         if multi:
             st.markdown(

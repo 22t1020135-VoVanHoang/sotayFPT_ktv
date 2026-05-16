@@ -371,8 +371,21 @@ html, body, [class*="css"] {
 }
 
 /* ═══════════════════ BẢNG EXCEL INLINE ════════════════════ */
+
+/* ── Shared: thead sticky khi scroll dọc ── */
+.xl-wrap thead th,
+.bg-excel thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* ── Bảng mã lỗi / dữ liệu thông thường ── */
 .xl-wrap {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-radius: 12px;
     margin-top: 12px;
     border: 1px solid #E4E9F0;
@@ -380,25 +393,49 @@ html, body, [class*="css"] {
 }
 .xl-wrap table {
     border-collapse: collapse;
-    width: 100%;
-    font-size: 0.82rem;
+    width: max-content;        /* không ép thu nhỏ, scroll ngang thay thế */
+    min-width: 100%;
+    font-size: 0.88rem;        /* tăng từ 0.82 → dễ đọc hơn trên mobile */
     font-family: 'Sora', sans-serif;
 }
 .xl-wrap tbody td {
     background: #ffffff;
     color: #2D3748;
-    padding: 8px 14px;
+    padding: 10px 16px;        /* tăng padding → touch target tốt hơn */
     border-bottom: 1px solid #F0F3F8;
     border-right: 1px solid #F0F3F8;
     vertical-align: middle;
-    line-height: 1.5;
+    line-height: 1.6;
+    white-space: nowrap;       /* KHÔNG bẻ dọc chữ trong ô */
+    min-width: 80px;
+}
+.xl-wrap tbody td:first-child {
+    position: sticky;          /* ghim cột đầu khi scroll ngang */
+    left: 0;
+    z-index: 1;
+    background: #ffffff;
+    border-right: 2px solid #E4E9F0;
+    font-weight: 600;
+}
+.xl-wrap thead th {
+    background: #F0F3F8;
+    color: #1A2A3A;
+    border-bottom: 2px solid #D0D8E8;
+    padding: 11px 16px;
+}
+.xl-wrap thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 3;              /* trên cả sticky body td */
+    background: #E8EDF5;
 }
 .xl-wrap tbody td:last-child { border-right: none; }
 .xl-wrap tbody tr:last-child td { border-bottom: none; }
 .xl-wrap tbody tr:nth-child(even) td { background: #FAFBFD; }
+.xl-wrap tbody tr:nth-child(even) td:first-child { background: #F5F7FA; }
 .xl-wrap tbody tr:hover td { background: #FFF5EF !important; color: #C04800 !important; }
 
-/* ── Bảng giá cước ── */
+/* ── Bảng giá cước (bg-excel) ── */
 .bg-excel-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -407,23 +444,69 @@ html, body, [class*="css"] {
     box-shadow: 0 2px 16px rgba(0, 93, 163, 0.07);
     margin-top: 4px;
 }
+
+/* Gợi ý scroll trên mobile */
+.bg-excel-wrap::after {
+    content: "← Vuốt ngang để xem thêm →";
+    display: none;
+    text-align: center;
+    font-size: 0.72rem;
+    color: #B0BBC8;
+    padding: 6px 0 2px;
+    font-family: 'Sora', sans-serif;
+}
+@media (max-width: 640px) {
+    .bg-excel-wrap::after { display: block; }
+}
+
 .bg-excel {
     border-collapse: collapse;
-    width: 100%;
-    min-width: 680px;
-    font-size: 0.8rem;
+    width: max-content;        /* không ép thu nhỏ, scroll ngang */
+    min-width: 100%;
+    font-size: 0.9rem;         /* tăng từ 0.8 → rõ hơn */
     font-family: 'Sora', sans-serif;
+    line-height: 1.5;
 }
 .bg-excel td {
     border: 1px solid #E4E9F0;
-    padding: 8px 12px;
+    padding: 10px 14px;        /* tăng padding */
     text-align: center;
     vertical-align: middle;
-    white-space: normal;
-    word-break: break-word;
-    max-width: 220px;
+    white-space: nowrap;       /* KHÔNG bẻ dọc chữ */
+    min-width: 90px;
+}
+.bg-excel td:first-child {
+    position: sticky;          /* ghim cột đầu khi scroll ngang */
+    left: 0;
+    z-index: 1;
+    background: inherit;
+    border-right: 2px solid #D0D8E8;
+    font-weight: 700;
+    text-align: left;
+    min-width: 110px;
+}
+.bg-excel thead th {
+    background: #EAF0FB;
+    color: #1A2A3A;
+    border-bottom: 2px solid #C0CEDE;
+    padding: 11px 14px;
+    text-align: center;
+}
+.bg-excel thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #DDE6F5;
+    text-align: left;
 }
 .bg-excel tbody tr:hover td { filter: brightness(0.95); transition: filter 0.12s; }
+
+/* Header row của bảng giá cước: chữ in đậm */
+.bg-excel tr:first-child td,
+.bg-excel tr:nth-child(2) td {
+    font-weight: 700;
+    font-size: 0.88rem;
+}
 
 /* ══════════ DOWNLOAD BUTTON ═══════════ */
 .stDownloadButton > button {
