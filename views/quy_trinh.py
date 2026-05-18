@@ -1,11 +1,10 @@
 """
 views/quy_trinh.py
 Render tab "Quy trình" và tab "Xử lý sự cố".
-Cung cấp helpers dùng chung: render_section_header, render_expander_list.
+Exports helpers dùng chung: render_section_header, render_expander_list.
 """
 
 import os
-
 import streamlit as st
 import openpyxl
 
@@ -23,30 +22,30 @@ _SUPPORTED  = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
 #  Helpers dùng chung
 # ──────────────────────────────────────────────────────────────
 
-def render_section_header(icon: str, title: str, count: int = None) -> None:
-    """Hiển thị tiêu đề section kèm số lượng mục."""
+def render_section_header(icon: str, title: str, count: int | None = None) -> None:
+    # QUAN TRỌNG: Không được có dòng trắng bên trong HTML block.
+    # Marked.js (Streamlit's parser) sẽ thoát khỏi HTML mode khi gặp blank line
+    # và render phần còn lại (</div>) thành plain text hiển thị trên màn hình.
     count_html = f"<span class='fpt-section-count'>{count} mục</span>" if count is not None else ""
-    st.markdown(f"""
-    <div class="fpt-section-header">
-        <div class="fpt-section-icon">{icon}</div>
-        <span class="fpt-section-title">{title}</span>
-        {count_html}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="fpt-section-header">'
+        f'<div class="fpt-section-icon">{icon}</div>'
+        f'<span class="fpt-section-title">{title}</span>'
+        f'{count_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
-def render_expander_list(rows: list, keyword: str = "", show_empty: bool = True) -> None:
+def render_expander_list(rows: list[dict], keyword: str = "", show_empty: bool = True) -> None:
     """
-    Lọc danh sách theo keyword và hiển thị từng mục dưới dạng expander.
-    - Khi có keyword: tự động mở rộng (expanded=True) và highlight.
-    - show_empty=False → không hiện thông báo trống (dùng khi folder còn tài liệu khác).
+    Lọc danh sách theo keyword và hiển thị dưới dạng expander.
+    Khi có keyword: tự mở rộng và highlight kết quả.
     """
-    kw_lower = keyword.strip().lower()
+    kw = keyword.strip().lower()
     filtered = [
         r for r in rows
-        if not kw_lower
-        or kw_lower in r["ten"].lower()
-        or kw_lower in r["buoc"].lower()
+        if not kw or kw in r["ten"].lower() or kw in r["buoc"].lower()
     ]
 
     if not filtered:
@@ -58,75 +57,47 @@ def render_expander_list(rows: list, keyword: str = "", show_empty: bool = True)
             )
         return
 
-    if kw_lower:
-        st.markdown(
-            '<div id="search-result-anchor" style="height:0;margin:0;padding:0;"></div>',
-            unsafe_allow_html=True,
-        )
-
-    auto_expand = bool(kw_lower)
+    auto_expand = bool(kw)
     for row in filtered:
         if not row["ten"]:
             continue
-        label = f"🔎  {row['ten']}" if (kw_lower and kw_lower in row["ten"].lower()) else f"🛠  {row['ten']}"
+        label = f"🔎  {row['ten']}" if (kw and kw in row["ten"].lower()) else f"🛠  {row['ten']}"
         with st.expander(label, expanded=auto_expand):
             st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
-
-    if kw_lower:
-        st.markdown("""
-        <script>
-        (function() {
-            function scrollToResults() {
-                var anchor = document.getElementById('search-result-anchor');
-                if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            if (document.readyState === 'complete') {
-                setTimeout(scrollToResults, 300);
-            } else {
-                window.addEventListener('load', function() { setTimeout(scrollToResults, 300); });
-            }
-        })();
-        </script>
-        """, unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────
 #  Tab Quy trình
 # ──────────────────────────────────────────────────────────────
 
-def render_quy_trinh(data: list, keyword: str = "") -> None:
-    """Render toàn bộ tab Quy trình."""
-    rows     = [r for r in data if r["folder"] == "Quy trình"]
-    kw_lower = keyword.strip().lower()
-
-    if kw_lower:
-        matched = [r for r in rows if kw_lower in r["ten"].lower() or kw_lower in r["buoc"].lower()]
-        render_section_header("📂", "Quy trình", len(matched))
-    else:
-        render_section_header("📂", "Quy trình", len(rows))
-
+def render_quy_trinh(data: list[dict], keyword: str = "") -> None:
+    rows = [r for r in data if r["folder"] == "Quy trình"]
+    kw   = keyword.strip().lower()
+    count = sum(1 for r in rows if not kw or kw in r["ten"].lower() or kw in r["buoc"].lower()) if kw else len(rows)
+    render_section_header("📂", "Quy trình", count)
     render_expander_list(rows, keyword)
 
 
 # ──────────────────────────────────────────────────────────────
-#  Tab Xử lý sự cố — helpers
+#  Tab Xử lý sự cố — helpers nội bộ
 # ──────────────────────────────────────────────────────────────
 
 def _doc_card_html(icon: str, title: str, desc: str,
                    color: str, bg: str, border: str) -> str:
-    return f"""
-    <div class="doc-card" style="border-color:{border};border-left:3px solid {color};margin-bottom:10px;">
-        <div class="doc-card-icon" style="background:{bg};">{icon}</div>
-        <div style="flex:1;">
-            <div class="doc-card-title" style="color:{color};">{title}</div>
-            <div class="doc-card-desc">{desc}</div>
-        </div>
-    </div>"""
+    return (
+        f'<div class="doc-card" style="border-color:{border};border-left:3px solid {color};margin-bottom:10px;">'
+        f'  <div class="doc-card-icon" style="background:{bg};">{icon}</div>'
+        f'  <div style="flex:1;">'
+        f'    <div class="doc-card-title" style="color:{color};">{title}</div>'
+        f'    <div class="doc-card-desc">{desc}</div>'
+        f'  </div>'
+        f'</div>'
+    )
 
 
-@st.cache_data(ttl=30)
-def _get_sheet_names(path: str) -> list:
-    """Đọc tên Sheet trong file Excel (cache 30s)."""
+@st.cache_data(ttl=60)
+def _get_sheet_names(path: str) -> list[str]:
+    """Đọc tên sheet (cache 60s, đồng bộ ttl với render_excel_file)."""
     try:
         wb = openpyxl.load_workbook(path, read_only=True)
         names = wb.sheetnames
@@ -137,7 +108,7 @@ def _get_sheet_names(path: str) -> list:
 
 
 def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str) -> None:
-    """Hiển thị Excel với nút tab chọn Sheet, kèm nút tải về."""
+    """Hiển thị Excel với tab chọn sheet + nút tải về."""
     if not os.path.isfile(xlsx_path):
         st.warning(f"⚠️ Chưa tìm thấy file: {os.path.basename(xlsx_path)}")
         return
@@ -147,7 +118,7 @@ def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str) -> None:
         st.warning("⚠️ Không đọc được sheet nào từ file Excel.")
         return
 
-    if session_key not in st.session_state or st.session_state[session_key] not in sheet_names:
+    if st.session_state.get(session_key) not in sheet_names:
         st.session_state[session_key] = sheet_names[0]
 
     active_sheet = st.session_state[session_key]
@@ -157,26 +128,26 @@ def _render_excel_with_sheet_tabs(xlsx_path: str, session_key: str) -> None:
         "font-family:Sora,sans-serif;'>📋 Chọn nền tảng / loại thiết bị:</p>",
         unsafe_allow_html=True,
     )
-    chunk = 4
-    for i in range(0, len(sheet_names), chunk):
-        cols = st.columns(len(sheet_names[i:i + chunk]))
-        for col, sname in zip(cols, sheet_names[i:i + chunk]):
+
+    for i in range(0, len(sheet_names), 4):
+        chunk = sheet_names[i:i + 4]
+        for col, name in zip(st.columns(len(chunk)), chunk):
             with col:
                 if st.button(
-                    sname,
-                    key=f"{session_key}_sheet_{sname}",
-                    type="primary" if sname == active_sheet else "secondary",
+                    name, key=f"{session_key}_sheet_{name}",
+                    type="primary" if name == active_sheet else "secondary",
                     use_container_width=True,
                 ):
-                    st.session_state[session_key] = sname
+                    st.session_state[session_key] = name
                     st.rerun()
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    all_sheets = render_excel_file(xlsx_path, css_class="bg-excel-wrap")
-    sheet_map  = {name: html for name, html in all_sheets}
-    html = sheet_map.get(active_sheet, "<p style='color:red'>Không tìm thấy sheet.</p>")
-    st.markdown(html, unsafe_allow_html=True)
+    sheet_map = dict(render_excel_file(xlsx_path))
+    st.markdown(
+        sheet_map.get(active_sheet, "<p style='color:red'>Không tìm thấy sheet.</p>"),
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
     with open(xlsx_path, "rb") as f:
@@ -197,8 +168,7 @@ def _render_xu_ly_docs() -> None:
     )
     st.markdown(
         "<p style='color:#F26F21;font-weight:700;font-size:0.9rem;"
-        "font-family:Sora,sans-serif;margin-bottom:14px;'>"
-        "📎 Tài liệu xử lý sự cố</p>",
+        "font-family:Sora,sans-serif;margin-bottom:14px;'>📎 Tài liệu xử lý sự cố</p>",
         unsafe_allow_html=True,
     )
 
@@ -243,17 +213,12 @@ def _render_xu_ly_docs() -> None:
 #  Entry point
 # ──────────────────────────────────────────────────────────────
 
-def render_xu_ly_su_co(data: list, keyword: str = "") -> None:
-    """Render toàn bộ tab Xử lý sự cố."""
+def render_xu_ly_su_co(data: list[dict], keyword: str = "") -> None:
     rows = [r for r in data if r["folder"] == "Xử lý sự cố"]
-
-    # BUG FIX: guard os.path.isdir() trước os.listdir()
     file_count = (
-        sum(1 for f in os.listdir(_XU_LY_DIR)
-            if os.path.splitext(f)[1].lower() in _SUPPORTED)
+        sum(1 for f in os.listdir(_XU_LY_DIR) if os.path.splitext(f)[1].lower() in _SUPPORTED)
         if os.path.isdir(_XU_LY_DIR) else 0
     )
-
     render_section_header("🔧", "Xử lý sự cố", len(rows) + file_count)
-    render_expander_list(rows, keyword, show_empty=(len(rows) > 0))
+    render_expander_list(rows, keyword, show_empty=bool(rows))
     _render_xu_ly_docs()

@@ -1,7 +1,12 @@
 """
 views/ban_hang.py
-Render tab "Bán hàng": Card gói cước + filter khu vực.
-Dùng div/flexbox thay table để tương thích hoàn toàn với st.markdown().
+Render tab "Bán hàng": Accordion khu vực → Cards gói cước bên trong.
+
+Logic accordion:
+  - Mặc định: tất cả Danh mục cha đóng.
+  - Click Danh mục cha → mở rộng, hiển thị cards con ngay bên dưới.
+  - Click lại → thu gọn.
+  - Nhiều mục có thể mở cùng lúc (độc lập nhau).
 """
 
 import streamlit as st
@@ -244,6 +249,19 @@ _COMBO_SPORT = {
     ],
 }
 
+# Thứ tự và nhãn hiển thị của các accordion
+# (area_key, label_hiển_thị, mô_tả_phụ_hoặc_None)
+_AREA_CONFIG = [
+    ("Phường",          "Phường",                        None),
+    ("Xã, Vùng ven",   "Xã, Vùng ven",                  None),
+    ("Toàn Thành Phố", "Đặc Biệt Toàn Thành Phố",       None),
+    ("Xã Đặc Biệt",    "Xã Đặc Biệt",
+     "Xã Phú Vang, Xã Phú Lộc, Xã Phú Vinh, Xã Chân Mây Lăng Cô, Xã Lộc An, "
+     "Xã Đan Điền, Xã Bình Điền, Phường Thuận An, Phường Thanh Thuỷ, "
+     "Phường Phong Quảng, Phường Phong Dinh, Phường Phú Bài"),
+    ("Combo Thể Thao",  "Combo Thể Thao",                None),
+]
+
 # ──────────────────────────────────────────────────────────────
 #  CSS
 # ──────────────────────────────────────────────────────────────
@@ -286,8 +304,6 @@ _BH_CSS = """<style>
     border:1px solid rgba(217,119,6,0.22);
     line-height:1.45;
 }
-
-/* ── Column header row ── */
 .bh-col-header {
     display:flex;
     align-items:center;
@@ -313,8 +329,6 @@ _BH_CSS = """<style>
     letter-spacing:0.6px;
     text-align:center;
 }
-
-/* ── Item row (giá cước chính) ── */
 .bh-item-row {
     display:flex;
     align-items:center;
@@ -337,8 +351,6 @@ _BH_CSS = """<style>
     font-weight:800;
     letter-spacing:-0.3px;
 }
-
-/* ── Sub row (phí hòa mạng) ── */
 .bh-sub-row {
     display:flex;
     align-items:center;
@@ -362,15 +374,11 @@ _BH_CSS = """<style>
     color:#8896A5;
     font-weight:500;
 }
-
-/* ── Separator between items ── */
 .bh-item-sep {
     height:1px;
     background:linear-gradient(90deg,transparent,#E8EDF5 20%,#E8EDF5 80%,transparent);
     margin:0 20px;
 }
-
-/* ── Combo Sport card ── */
 .bh-sport-row {
     display:flex;
     align-items:center;
@@ -399,8 +407,6 @@ _BH_CSS = """<style>
     color:#8896A5;
     font-weight:500;
 }
-
-/* ── Global note ── */
 .bh-global-note {
     background:linear-gradient(135deg,#EDE9FE 0%,#F5F3FF 100%);
     border:1px solid #C4B5FD;
@@ -413,28 +419,6 @@ _BH_CSS = """<style>
     font-family:'Sora',sans-serif;
     line-height:1.5;
 }
-
-/* ── Quy trinh section divider ── */
-.bh-section-label {
-    font-size:0.75rem;
-    font-weight:700;
-    color:#B0BBC8;
-    text-transform:uppercase;
-    letter-spacing:1px;
-    margin:22px 0 12px;
-    font-family:'Sora',sans-serif;
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-.bh-section-label::after {
-    content:'';
-    flex:1;
-    height:1px;
-    background:#EDF0F5;
-}
-
-/* ── Mobile tweaks ── */
 @media (max-width:600px) {
     .bh-card-header { padding:13px 14px 11px; }
     .bh-col-header  { padding:8px 14px; }
@@ -448,11 +432,10 @@ _BH_CSS = """<style>
 </style>"""
 
 # ──────────────────────────────────────────────────────────────
-#  HTML BUILDERS — dùng div/flex, KHÔNG dùng table
+#  HTML BUILDERS
 # ──────────────────────────────────────────────────────────────
 
 def _col_header(col3=True) -> str:
-    """Hàng tiêu đề cột."""
     if col3:
         return """
 <div class="bh-col-header">
@@ -470,7 +453,6 @@ def _col_header(col3=True) -> str:
 
 
 def _item_block(item: dict, color: dict) -> str:
-    """Hàng giá chính + các hàng phí hòa mạng."""
     html = f"""
 <div class="bh-item-row">
   <div class="bh-item-label" style="color:{color['text']};">{item['label']}</div>
@@ -490,15 +472,14 @@ def _item_block(item: dict, color: dict) -> str:
 
 
 def _render_goi_card(goi: dict) -> str:
-    c = goi["color"]
-    bw = goi["bang_thong"]
+    c    = goi["color"]
+    bw   = goi["bang_thong"]
     bw_html = f"<div class='bh-card-bw'>{bw}</div>" if bw else ""
     body = _col_header(col3=True)
     for i, item in enumerate(goi["items"]):
         if i > 0:
             body += "<div class='bh-item-sep'></div>"
         body += _item_block(item, c)
-
     return f"""
 <div class="bh-card" style="border-color:{c['border']};">
   <div class="bh-card-header" style="background:{c['bg']};">
@@ -510,7 +491,7 @@ def _render_goi_card(goi: dict) -> str:
 
 
 def _render_sport_card(goi: dict) -> str:
-    c = goi["color"]
+    c    = goi["color"]
     body = _col_header(col3=False)
     for item in goi["items"]:
         body += f"""
@@ -519,7 +500,6 @@ def _render_sport_card(goi: dict) -> str:
   <div class="bh-sport-price" style="color:{c['text']};">{item['gia_cuoc']}</div>
   <div class="bh-sport-phm">{item['phm']}</div>
 </div>"""
-
     return f"""
 <div class="bh-card" style="border-color:{c['border']};">
   <div class="bh-card-header" style="background:{c['bg']};">
@@ -531,57 +511,96 @@ def _render_sport_card(goi: dict) -> str:
 
 
 # ──────────────────────────────────────────────────────────────
+#  ACCORDION — RENDER NỘI DUNG CON
+# ──────────────────────────────────────────────────────────────
+
+def _render_area_content(area_key: str) -> None:
+    """Render các cards con bên trong một accordion đang mở."""
+    if area_key == "Combo Thể Thao":
+        st.markdown(
+            f"<div class='bh-global-note'>🎫&nbsp; {_COMBO_SPORT['ghi_chu']}</div>",
+            unsafe_allow_html=True,
+        )
+        for goi in _COMBO_SPORT["goi"]:
+            st.markdown(_render_sport_card(goi), unsafe_allow_html=True)
+
+    elif area_key in _DATA:
+        for goi in _DATA[area_key]:
+            if goi.get("ghi_chu"):
+                st.markdown(
+                    f"<div class='bh-global-note'>📷&nbsp; {goi['ghi_chu']}</div>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown(_render_goi_card(goi), unsafe_allow_html=True)
+
+
+# ──────────────────────────────────────────────────────────────
 #  ENTRY POINT
 # ──────────────────────────────────────────────────────────────
 
 def render_ban_hang(data: list, keyword: str = "") -> None:
-    """Render toàn bộ tab Bán hàng."""
+    """Render toàn bộ tab Bán hàng với giao diện Accordion."""
     st.markdown(_BH_CSS, unsafe_allow_html=True)
-    render_section_header("🛒", "Bán hàng — Chương trình giá cước")
+    render_section_header("💼", "Chương trình bán hàng")
 
-    # Expander "Chương trình bán hàng" chứa filter + cards
-    with st.expander("🛠  Chương trình bán hàng", expanded=True):
-        # ── Filter khu vực ──
-        st.session_state.setdefault("bh_area", "Phường")
+    # bh_open_areas: set chứa các area_key đang mở
+    # Dùng list trong session_state vì set không serialize được ổn định
+    if "bh_open_areas" not in st.session_state:
+        st.session_state.bh_open_areas = []
 
-        area_labels = {
-            "Phường":         "Phường",
-            "Xã, Vùng ven":  "Xã, Vùng ven",
-            "Toàn Thành Phố": "Toàn TP",
-            "Xã Đặc Biệt":   "Xã Đặc Biệt",
-            "Combo Thể Thao": "Thể Thao",
-        }
+    open_set = set(st.session_state.bh_open_areas)
 
-        cols = st.columns(len(area_labels))
-        for col, (area_key, area_label) in zip(cols, area_labels.items()):
-            with col:
-                is_active = st.session_state.bh_area == area_key
-                if st.button(
-                    area_label, key=f"bh_area_{area_key}",
-                    type="primary" if is_active else "secondary",
-                    use_container_width=True,
-                ):
-                    st.session_state.bh_area = area_key
-                    st.rerun()
+    st.markdown(
+        "<p style='color:#8896A5;font-size:0.8rem;font-family:Sora,sans-serif;"
+        "margin:0 0 14px 0;'>Chọn khu vực để xem giá cước tương ứng:</p>",
+        unsafe_allow_html=True,
+    )
 
-        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+    # ── Render từng accordion theo thứ tự ──
+    for area_key, area_label, area_desc in _AREA_CONFIG:
+        is_open = area_key in open_set
 
-        active = st.session_state.bh_area
+        # Header nút accordion: mũi tên ▾/▸ + label (không có icon)
+        btn_label = f"{'▾' if is_open else '▸'}  {area_label}"
+        if st.button(
+            btn_label,
+            key=f"acc_{area_key}",
+            type="primary" if is_open else "secondary",
+            use_container_width=True,
+        ):
+            # Toggle mở/đóng
+            if is_open:
+                open_set.discard(area_key)
+            else:
+                open_set.add(area_key)
+            st.session_state.bh_open_areas = list(open_set)
+            st.rerun()
 
-        # ── Render cards ──
-        if active == "Combo Thể Thao":
+        # Nội dung bên trong — chỉ render khi đang mở
+        if is_open:
+            # Danh sách địa danh (nếu có) — hiện ngay dưới nút khi mở
+            if area_desc:
+                st.markdown(
+                    f"<p style='font-size:0.74rem;color:#8896A5;font-family:Sora,sans-serif;"
+                    f"margin:6px 0 10px 4px;line-height:1.6;'>"
+                    f"📍 {area_desc}</p>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            _render_area_content(area_key)
             st.markdown(
-                f"<div class='bh-global-note'>🎫&nbsp; {_COMBO_SPORT['ghi_chu']}</div>",
+                "<hr style='border:none;border-top:1px solid #EDF0F5;margin:4px 0 14px 0;'>",
                 unsafe_allow_html=True,
             )
-            for goi in _COMBO_SPORT["goi"]:
-                st.markdown(_render_sport_card(goi), unsafe_allow_html=True)
 
-        elif active in _DATA:
-            for goi in _DATA[active]:
-                if goi.get("ghi_chu"):
-                    st.markdown(
-                        f"<div class='bh-global-note'>📷&nbsp; {goi['ghi_chu']}</div>",
-                        unsafe_allow_html=True,
-                    )
-                st.markdown(_render_goi_card(goi), unsafe_allow_html=True)
+    # Nút "Thu gọn tất cả" — chỉ hiện khi có mục đang mở
+    if open_set:
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        if st.button(
+            "✕  Thu gọn tất cả",
+            key="acc_collapse_all",
+            use_container_width=True,
+        ):
+            st.session_state.bh_open_areas = []
+            st.rerun()
