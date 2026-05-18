@@ -543,64 +543,90 @@ def render_ban_hang(data: list, keyword: str = "") -> None:
     st.markdown(_BH_CSS, unsafe_allow_html=True)
     render_section_header("💼", "Chương trình bán hàng")
 
-    # bh_open_areas: set chứa các area_key đang mở
-    # Dùng list trong session_state vì set không serialize được ổn định
+    # ── session_state keys ──
+    # bh_parent_open : bool  — trạng thái Parent Accordion "CHỌN KHU VỰC"
+    # bh_open_areas  : list  — các accordion con đang mở
+    if "bh_parent_open" not in st.session_state:
+        st.session_state.bh_parent_open = False
     if "bh_open_areas" not in st.session_state:
         st.session_state.bh_open_areas = []
 
-    open_set = set(st.session_state.bh_open_areas)
+    # ── Parent Accordion ──
+    parent_open = st.session_state.bh_parent_open
+    parent_label = f"{'▾' if parent_open else '▸'}  📍 CHỌN KHU VỰC"
+    if st.button(
+        parent_label,
+        key="acc_parent_khu_vuc",
+        type="primary" if parent_open else "secondary",
+        use_container_width=True,
+    ):
+        st.session_state.bh_parent_open = not parent_open
+        # Đóng tất cả accordion con khi thu gọn parent
+        if parent_open:
+            st.session_state.bh_open_areas = []
+        st.rerun()
 
-    st.markdown(
-        "<p style='color:#8896A5;font-size:0.8rem;font-family:Sora,sans-serif;"
-        "margin:0 0 14px 0;'>Chọn khu vực để xem giá cước tương ứng:</p>",
-        unsafe_allow_html=True,
-    )
+    # ── Nội dung bên trong Parent — chỉ render khi parent đang mở ──
+    if parent_open:
+        open_set = set(st.session_state.bh_open_areas)
 
-    # ── Render từng accordion theo thứ tự ──
-    for area_key, area_label, area_desc in _AREA_CONFIG:
-        is_open = area_key in open_set
+        st.markdown(
+            "<p style='color:#8896A5;font-size:0.8rem;font-family:Sora,sans-serif;"
+            "margin:8px 0 10px 12px;'>Chọn khu vực để xem giá cước tương ứng:</p>",
+            unsafe_allow_html=True,
+        )
 
-        # Header nút accordion: mũi tên ▾/▸ + label (không có icon)
-        btn_label = f"{'▾' if is_open else '▸'}  {area_label}"
-        if st.button(
-            btn_label,
-            key=f"acc_{area_key}",
-            type="primary" if is_open else "secondary",
-            use_container_width=True,
-        ):
-            # Toggle mở/đóng
-            if is_open:
-                open_set.discard(area_key)
-            else:
-                open_set.add(area_key)
-            st.session_state.bh_open_areas = list(open_set)
-            st.rerun()
-
-        # Nội dung bên trong — chỉ render khi đang mở
-        if is_open:
-            # Danh sách địa danh (nếu có) — hiện ngay dưới nút khi mở
-            if area_desc:
-                st.markdown(
-                    f"<p style='font-size:0.74rem;color:#8896A5;font-family:Sora,sans-serif;"
-                    f"margin:6px 0 10px 4px;line-height:1.6;'>"
-                    f"📍 {area_desc}</p>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            _render_area_content(area_key)
+        # Indent các accordion con vào trong
+        with st.container():
             st.markdown(
-                "<hr style='border:none;border-top:1px solid #EDF0F5;margin:4px 0 14px 0;'>",
+                "<div style='border-left:3px solid #F26F21;margin-left:8px;padding-left:12px;'>",
                 unsafe_allow_html=True,
             )
 
-    # Nút "Thu gọn tất cả" — chỉ hiện khi có mục đang mở
-    if open_set:
-        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-        if st.button(
-            "✕  Thu gọn tất cả",
-            key="acc_collapse_all",
-            use_container_width=True,
-        ):
-            st.session_state.bh_open_areas = []
-            st.rerun()
+            # ── Render từng accordion con ──
+            for area_key, area_label, area_desc in _AREA_CONFIG:
+                is_open = area_key in open_set
+
+                btn_label = f"{'▾' if is_open else '▸'}  {area_label}"
+                if st.button(
+                    btn_label,
+                    key=f"acc_{area_key}",
+                    type="primary" if is_open else "secondary",
+                    use_container_width=True,
+                ):
+                    if is_open:
+                        open_set.discard(area_key)
+                    else:
+                        open_set.add(area_key)
+                    st.session_state.bh_open_areas = list(open_set)
+                    st.rerun()
+
+                # Nội dung accordion con — chỉ render khi đang mở
+                if is_open:
+                    if area_desc:
+                        st.markdown(
+                            f"<p style='font-size:0.74rem;color:#8896A5;font-family:Sora,sans-serif;"
+                            f"margin:6px 0 10px 4px;line-height:1.6;'>"
+                            f"📍 {area_desc}</p>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+                    _render_area_content(area_key)
+                    st.markdown(
+                        "<hr style='border:none;border-top:1px solid #EDF0F5;margin:4px 0 14px 0;'>",
+                        unsafe_allow_html=True,
+                    )
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # Nút "Thu gọn tất cả" — chỉ hiện khi có accordion con đang mở
+        if open_set:
+            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+            if st.button(
+                "✕  Thu gọn tất cả",
+                key="acc_collapse_all",
+                use_container_width=True,
+            ):
+                st.session_state.bh_open_areas = []
+                st.rerun()
