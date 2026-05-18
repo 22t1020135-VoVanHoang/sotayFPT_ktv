@@ -537,6 +537,33 @@ html, body, [class*="css"] {
     .fpt-pad { padding: 1.2rem 1rem; }
     .fpt-tabs-wrap { padding: 0 1rem; overflow-x: auto; }
 }
+
+/* ════════════════════════════════════════════════════
+   BAN HANG — Bổ sung hỗ trợ filter 5 nút khu vực
+   (CSS card chính nằm trong ban_hang.py _BH_CSS)
+════════════════════════════════════════════════════ */
+
+/* Khi có 5 nút filter khu vực, cho phép font nhỏ hơn chút
+   để không bị vỡ layout trên màn hình vừa (768–900px)      */
+@media (max-width: 900px) and (min-width: 640px) {
+    /* Nhắm đúng dòng 5 nút filter bán hàng */
+    [data-testid="stHorizontalBlock"] .stButton > button {
+        font-size: 0.78rem !important;
+        padding: 0.4rem 0.3rem !important;
+        min-height: 38px !important;
+    }
+}
+
+/* Mobile ≤ 640px: 5 nút filter wrap 2 hàng tự nhiên nhờ
+   Streamlit columns — chỉ cần font đủ nhỏ để vừa 1 hàng   */
+@media (max-width: 640px) {
+    [data-testid="stHorizontalBlock"] .stButton > button {
+        font-size: 0.72rem !important;
+        padding: 0.35rem 0.2rem !important;
+        min-height: 36px !important;
+        letter-spacing: -0.3px !important;
+    }
+}
 </style>
 """
 
