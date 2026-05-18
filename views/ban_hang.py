@@ -191,8 +191,8 @@ _DATA = {
     "Toàn Thành Phố": [
         {
             "goi": "GIGA + CAM", "icon": "📷", "color": _COLORS["GIGA_CAM"],
-            "bang_thong": "Ưu đãi Camera — cước tăng 10K sau 12 tháng",
-            "ghi_chu": "Sử dụng Camera IQ3S hoặc Play 4",
+            "bang_thong": "",
+            "ghi_chu": "Ưu đãi Camera cước tăng 10K sau 12T và sử dụng Camera IQ3S hoặc Play 4",
             "items": [
                 {
                     "label": "Giga 1 Modem + CAM",
@@ -207,8 +207,8 @@ _DATA = {
     "Xã Đặc Biệt": [
         {
             "goi": "GIGA + CAM", "icon": "📷", "color": _COLORS["GIGA_CAM"],
-            "bang_thong": "Ưu đãi Camera — cước tăng 10K sau 12 tháng",
-            "ghi_chu": "Sử dụng Camera IQ3S hoặc Play 4",
+            "bang_thong": "",
+            "ghi_chu": "Ưu đãi Camera cước tăng 10K sau 12T và sử dụng Camera IQ3S hoặc Play 4",
             "items": [
                 {
                     "label": "Giga 1 Modem Tặng CAM",
@@ -491,10 +491,8 @@ def _item_block(item: dict, color: dict) -> str:
 
 def _render_goi_card(goi: dict) -> str:
     c = goi["color"]
-    ghi_chu_html = (
-        f"<div class='bh-note-badge'>⚠️ {goi['ghi_chu']}</div>"
-        if goi.get("ghi_chu") else ""
-    )
+    bw = goi["bang_thong"]
+    bw_html = f"<div class='bh-card-bw'>{bw}</div>" if bw else ""
     body = _col_header(col3=True)
     for i, item in enumerate(goi["items"]):
         if i > 0:
@@ -505,8 +503,7 @@ def _render_goi_card(goi: dict) -> str:
 <div class="bh-card" style="border-color:{c['border']};">
   <div class="bh-card-header" style="background:{c['bg']};">
     <div class="bh-card-title" style="color:{c['text']};">{goi['icon']}&nbsp; Gói {goi['goi']}</div>
-    <div class="bh-card-bw">{goi['bang_thong']}</div>
-    {ghi_chu_html}
+    {bw_html}
   </div>
   {body}
 </div>"""
@@ -542,72 +539,49 @@ def render_ban_hang(data: list, keyword: str = "") -> None:
     st.markdown(_BH_CSS, unsafe_allow_html=True)
     render_section_header("🛒", "Bán hàng — Chương trình giá cước")
 
-    # ── Filter khu vực ──
-    st.session_state.setdefault("bh_area", "Phường")
+    # Expander "Chương trình bán hàng" chứa filter + cards
+    with st.expander("🛠  Chương trình bán hàng", expanded=True):
+        # ── Filter khu vực ──
+        st.session_state.setdefault("bh_area", "Phường")
 
-    area_labels = {
-        "Phường":         "🏙️ Phường",
-        "Xã, Vùng ven":  "🌿 Xã, Vùng ven",
-        "Toàn Thành Phố": "🏆 Toàn TP",
-        "Xã Đặc Biệt":   "⭐ Xã Đặc Biệt",
-        "Combo Thể Thao": "⚽ Thể Thao",
-    }
+        area_labels = {
+            "Phường":         "Phường",
+            "Xã, Vùng ven":  "Xã, Vùng ven",
+            "Toàn Thành Phố": "Toàn TP",
+            "Xã Đặc Biệt":   "Xã Đặc Biệt",
+            "Combo Thể Thao": "Thể Thao",
+        }
 
-    cols = st.columns(len(area_labels))
-    for col, (area_key, area_label) in zip(cols, area_labels.items()):
-        with col:
-            is_active = st.session_state.bh_area == area_key
-            if st.button(
-                area_label, key=f"bh_area_{area_key}",
-                type="primary" if is_active else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state.bh_area = area_key
-                st.rerun()
+        cols = st.columns(len(area_labels))
+        for col, (area_key, area_label) in zip(cols, area_labels.items()):
+            with col:
+                is_active = st.session_state.bh_area == area_key
+                if st.button(
+                    area_label, key=f"bh_area_{area_key}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state.bh_area = area_key
+                    st.rerun()
 
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-    active = st.session_state.bh_area
+        active = st.session_state.bh_area
 
-    # ── Render cards ──
-    if active == "Combo Thể Thao":
-        st.markdown(
-            f"<div class='bh-global-note'>🎫&nbsp; {_COMBO_SPORT['ghi_chu']}</div>",
-            unsafe_allow_html=True,
-        )
-        for goi in _COMBO_SPORT["goi"]:
-            st.markdown(_render_sport_card(goi), unsafe_allow_html=True)
+        # ── Render cards ──
+        if active == "Combo Thể Thao":
+            st.markdown(
+                f"<div class='bh-global-note'>🎫&nbsp; {_COMBO_SPORT['ghi_chu']}</div>",
+                unsafe_allow_html=True,
+            )
+            for goi in _COMBO_SPORT["goi"]:
+                st.markdown(_render_sport_card(goi), unsafe_allow_html=True)
 
-    elif active in _DATA:
-        for goi in _DATA[active]:
-            st.markdown(_render_goi_card(goi), unsafe_allow_html=True)
-
-    # ── Quy trình từ Excel (nếu có) ──
-    rows = [r for r in data if r["folder"] == "Bán hàng"]
-    if not rows:
-        return
-    kw_lower = keyword.strip().lower()
-    filtered = [
-        r for r in rows
-        if not kw_lower
-        or kw_lower in r["ten"].lower()
-        or kw_lower in r["buoc"].lower()
-    ]
-    if not filtered:
-        return
-
-    st.markdown(
-        "<div class='bh-section-label'>Quy trình &amp; hướng dẫn</div>",
-        unsafe_allow_html=True,
-    )
-    auto_expand = bool(kw_lower)
-    for row in filtered:
-        if not row["ten"]:
-            continue
-        label = (
-            f"🔎  {row['ten']}"
-            if (kw_lower and kw_lower in row["ten"].lower())
-            else f"🛠  {row['ten']}"
-        )
-        with st.expander(label, expanded=auto_expand):
-            st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
+        elif active in _DATA:
+            for goi in _DATA[active]:
+                if goi.get("ghi_chu"):
+                    st.markdown(
+                        f"<div class='bh-global-note'>📷&nbsp; {goi['ghi_chu']}</div>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown(_render_goi_card(goi), unsafe_allow_html=True)
