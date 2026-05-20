@@ -6,23 +6,20 @@ Load và parse SO_TAY_KTV.xlsx bằng openpyxl.
 import os
 import openpyxl
 
-_BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-REQUIRED_COLS = {"ten", "buoc"}
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_SEARCH_PATHS = (
+    os.path.join(_BASE_DIR, "SO_TAY_KTV.xlsx"),
+    os.path.join(_BASE_DIR, "tailieu", "SO_TAY_KTV.xlsx"),
+)
+REQUIRED_COLS = frozenset({"ten", "buoc"})
+DEFAULT_FOLDER = "Quy trình"
 
 
-def _find_file(filename: str) -> str:
-    """Tìm file ở thư mục gốc rồi tailieu/. Trả về path (không guarantee tồn tại)."""
-    candidates = [
-        os.path.join(_BASE_DIR, filename),
-        os.path.join(_BASE_DIR, "tailieu", filename),
-    ]
-    for path in candidates:
+def _find_file() -> str:
+    for path in _SEARCH_PATHS:
         if os.path.isfile(path):
             return path
-    return candidates[0]  # fallback → load_data sẽ raise FileNotFoundError
-
-
-FILE_PATH = _find_file("SO_TAY_KTV.xlsx")
+    raise FileNotFoundError(f"Không tìm thấy SO_TAY_KTV.xlsx trong: {_SEARCH_PATHS}")
 
 
 def load_data() -> list[dict]:
@@ -30,40 +27,35 @@ def load_data() -> list[dict]:
     Đọc SO_TAY_KTV.xlsx, trả về list[dict] với keys: 'ten', 'buoc', 'folder'.
     Raise FileNotFoundError / ValueError nếu có lỗi.
     """
-    if not os.path.isfile(FILE_PATH):
-        raise FileNotFoundError(FILE_PATH)
-
-    wb = openpyxl.load_workbook(FILE_PATH, data_only=True)
+    file_path = _find_file()
+    wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
     ws = wb.active
 
     headers = [
-        str(c.value).strip().lower() if c.value is not None else ""
-        for c in ws[1]
+        str(c).strip().lower() if (c := cell.value) is not None else ""
+        for cell in next(ws.iter_rows(max_row=1))
     ]
 
     missing = REQUIRED_COLS - set(headers)
     if missing:
+        wb.close()
         raise ValueError(f"Thiếu cột bắt buộc: {', '.join(sorted(missing))}")
 
-    idx_ten    = headers.index("ten")
-    idx_buoc   = headers.index("buoc")
+    idx = {name: headers.index(name) for name in ("ten", "buoc")}
     idx_folder = headers.index("folder") if "folder" in headers else None
 
-    def _cell(row_idx: int, col_idx: int) -> str:
-        v = ws.cell(row_idx, col_idx + 1).value
+    def _val(row, col_idx: int) -> str:
+        v = row[col_idx].value
         return str(v).strip() if v is not None else ""
 
     rows = []
-    for r in range(2, ws.max_row + 1):
-        ten  = _cell(r, idx_ten)
-        buoc = _cell(r, idx_buoc)
+    for row in ws.iter_rows(min_row=2):
+        ten  = _val(row, idx["ten"])
+        buoc = _val(row, idx["buoc"])
         if not ten and not buoc:
             continue
-        rows.append({
-            "ten":    ten,
-            "buoc":   buoc,
-            "folder": (_cell(r, idx_folder) if idx_folder is not None else "") or "Quy trình",
-        })
+        folder = (_val(row, idx_folder) if idx_folder is not None else "") or DEFAULT_FOLDER
+        rows.append({"ten": ten, "buoc": buoc, "folder": folder})
 
     wb.close()
     return rows

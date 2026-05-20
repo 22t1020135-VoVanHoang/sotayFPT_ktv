@@ -22,9 +22,7 @@ from views.tai_lieu import render_tai_lieu, count_cau_hinh_files
 
 inject_css()
 
-# ──────────────────────────────────────────────────────────────
-#  Load dữ liệu
-# ──────────────────────────────────────────────────────────────
+# ── Load dữ liệu ─────────────────────────────────────────────────────────────
 
 try:
     DATA = load_data()
@@ -38,32 +36,33 @@ except Exception as e:
     st.error(f"❌ Lỗi đọc file SO_TAY_KTV.xlsx: {e}")
     st.stop()
 
-# ──────────────────────────────────────────────────────────────
-#  Logo / Navbar
-# ──────────────────────────────────────────────────────────────
+# ── Logo ──────────────────────────────────────────────────────────────────────
 
 _APP_BASE = os.path.dirname(os.path.abspath(__file__))
 
 
-def _load_logo_b64(filename: str = "logo.png") -> str:
-    for path in [
-        os.path.join(_APP_BASE, filename),
-        os.path.join(_APP_BASE, "tailieu", filename),
-    ]:
+@st.cache_data
+def _logo_b64() -> str:
+    for path in (
+        os.path.join(_APP_BASE, "logo.png"),
+        os.path.join(_APP_BASE, "tailieu", "logo.png"),
+    ):
         if os.path.isfile(path):
             try:
                 return base64.b64encode(open(path, "rb").read()).decode()
             except Exception:
-                return ""
+                pass
     return ""
 
 
-_logo_b64 = _load_logo_b64()
+_logo = _logo_b64()
 _logo_img = (
-    f'<img src="data:image/png;base64,{_logo_b64}" class="fpt-nav-logo" alt="FPT Telecom"/>'
-    if _logo_b64
+    f'<img src="data:image/png;base64,{_logo}" class="fpt-nav-logo" alt="FPT Telecom"/>'
+    if _logo
     else '<span style="font-weight:800;color:#F26F21;font-size:1.1rem;">FPT</span>'
 )
+
+# ── Navbar ────────────────────────────────────────────────────────────────────
 
 st.markdown(
     f'<div class="fpt-nav"><div class="fpt-nav-brand">{_logo_img}'
@@ -72,9 +71,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ──────────────────────────────────────────────────────────────
-#  Hero
-# ──────────────────────────────────────────────────────────────
+# ── Hero ──────────────────────────────────────────────────────────────────────
 
 st.markdown("""
 <div class="fpt-hero">
@@ -86,9 +83,7 @@ st.markdown("""
 
 st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
 
-# ──────────────────────────────────────────────────────────────
-#  Thanh tìm kiếm
-# ──────────────────────────────────────────────────────────────
+# ── Thanh tìm kiếm ───────────────────────────────────────────────────────────
 
 _, col_search, _ = st.columns([0.5, 3, 0.5])
 with col_search:
@@ -101,30 +96,23 @@ kw = keyword.strip()
 
 st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 
-# ──────────────────────────────────────────────────────────────
-#  Session state
-# ──────────────────────────────────────────────────────────────
+# ── Session state ─────────────────────────────────────────────────────────────
 
 st.session_state.setdefault("active_folder",    "Quy trình")
 st.session_state.setdefault("active_subfolder", "Tài liệu tân binh")
 st.session_state.setdefault("_last_kw",         "")
 
-# ──────────────────────────────────────────────────────────────
-#  Tags tĩnh cho tìm kiếm các folder không có dữ liệu Excel
-# ──────────────────────────────────────────────────────────────
+# ── Tags tĩnh cho smart search ────────────────────────────────────────────────
 
-_XU_LY_TAGS = {
-    "camera fpt life", "các vấn đề thường gặp", "mã lỗi fpt play",
-    "smarttv", "android", "ios", "firmware",
-}
-_TAI_LIEU_TAGS = {
-    "tài liệu tân binh", "kỹ năng", "chuyên môn", "chính sách chế độ",
-    "cấu hình thiết bị", "internet hub ax3000s", "skyworth wifi6",
-    "hướng dẫn sử dụng", "đào tạo", "mesh wifi",
-}
+_XU_LY_TAGS  = frozenset({"camera fpt life", "các vấn đề thường gặp", "mã lỗi fpt play",
+                           "smarttv", "android", "ios", "firmware"})
+_TAI_LIEU_TAGS = frozenset({"tài liệu tân binh", "kỹ năng", "chuyên môn", "chính sách chế độ",
+                             "cấu hình thiết bị", "internet hub ax3000s", "skyworth wifi6",
+                             "hướng dẫn sử dụng", "đào tạo", "mesh wifi"})
+_CAU_HINH_KW = frozenset({"cấu hình", "thiết bị", "ax3000s", "skyworth", "wifi6",
+                           "internet hub", "đào tạo", "mesh"})
 
 FOLDER_KEYS = ["Quy trình", "Xử lý sự cố", "Bán hàng", "Tài liệu"]
-
 FOLDERS = {
     "📂  Quy trình":    "Quy trình",
     "🔧  Xử lý sự cố": "Xử lý sự cố",
@@ -132,13 +120,14 @@ FOLDERS = {
     "📁  Tài liệu":     "Tài liệu",
 }
 
+_XU_LY_DIR  = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
+_XU_LY_EXTS = frozenset({".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"})
+_TAN_BINH_COUNT = 3
 
-# ──────────────────────────────────────────────────────────────
-#  Đếm kết quả tìm kiếm / tổng theo folder
-# ──────────────────────────────────────────────────────────────
+
+# ── Helpers đếm hits / tổng ───────────────────────────────────────────────────
 
 def _data_hits(folder_key: str, kw_lower: str) -> int:
-    """Đếm số row trong DATA khớp keyword."""
     return sum(
         1 for r in DATA
         if r["folder"] == folder_key
@@ -157,15 +146,10 @@ def _count_hits(folder_key: str, kw_lower: str) -> int:
     return data_count
 
 
-_XU_LY_SUPPORTED = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
-_XU_LY_DIR = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
-_TAN_BINH_COUNT = 3  # Hằng số có tên, không dùng magic number
-
-
 def _count_total(folder_key: str) -> int:
     if folder_key == "Xử lý sự cố":
         file_count = (
-            sum(1 for f in os.listdir(_XU_LY_DIR) if os.path.splitext(f)[1].lower() in _XU_LY_SUPPORTED)
+            sum(1 for f in os.listdir(_XU_LY_DIR) if os.path.splitext(f)[1].lower() in _XU_LY_EXTS)
             if os.path.isdir(_XU_LY_DIR) else 0
         )
         return sum(1 for r in DATA if r["folder"] == folder_key) + file_count
@@ -174,19 +158,15 @@ def _count_total(folder_key: str) -> int:
     return sum(1 for r in DATA if r["folder"] == folder_key)
 
 
-# ──────────────────────────────────────────────────────────────
-#  Smart search — tự động chuyển tab phù hợp nhất
-# ──────────────────────────────────────────────────────────────
-
-_CAU_HINH_KW = {"cấu hình", "thiết bị", "ax3000s", "skyworth", "wifi6", "internet hub", "đào tạo", "mesh"}
+# ── Smart search: tự động chuyển tab phù hợp nhất ────────────────────────────
 
 if kw and kw != st.session_state._last_kw:
-    kw_lower    = kw.lower()
-    hit_counts  = {fk: _count_hits(fk, kw_lower) for fk in FOLDER_KEYS}
-    best_folder = max(hit_counts, key=hit_counts.get)
-    if hit_counts[best_folder] > 0:
-        st.session_state.active_folder = best_folder
-        if best_folder == "Tài liệu":
+    kw_lower   = kw.lower()
+    hit_counts = {fk: _count_hits(fk, kw_lower) for fk in FOLDER_KEYS}
+    best       = max(hit_counts, key=hit_counts.get)
+    if hit_counts[best] > 0:
+        st.session_state.active_folder = best
+        if best == "Tài liệu":
             st.session_state.active_subfolder = (
                 "Cấu hình thiết bị"
                 if any(k in kw_lower for k in _CAU_HINH_KW)
@@ -197,9 +177,7 @@ if kw and kw != st.session_state._last_kw:
 if not kw:
     st.session_state._last_kw = ""
 
-# ──────────────────────────────────────────────────────────────
-#  Banner kết quả tìm kiếm
-# ──────────────────────────────────────────────────────────────
+# ── Banner kết quả tìm kiếm ───────────────────────────────────────────────────
 
 if kw:
     kw_lower   = kw.lower()
@@ -222,9 +200,7 @@ if kw:
             unsafe_allow_html=True,
         )
 
-# ──────────────────────────────────────────────────────────────
-#  Folder tabs
-# ──────────────────────────────────────────────────────────────
+# ── Folder tabs ───────────────────────────────────────────────────────────────
 
 _, c1, c2, c3, c4, _ = st.columns([0.5, 1, 1, 1, 1, 0.5])
 for col, (label, folder_key) in zip([c1, c2, c3, c4], FOLDERS.items()):
@@ -249,9 +225,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ──────────────────────────────────────────────────────────────
-#  Nội dung từng folder
-# ──────────────────────────────────────────────────────────────
+# ── Nội dung folder ───────────────────────────────────────────────────────────
 
 _RENDER_MAP = {
     "Quy trình":    lambda: render_quy_trinh(DATA, kw),
@@ -260,7 +234,6 @@ _RENDER_MAP = {
     "Tài liệu":     lambda: render_tai_lieu(kw),
 }
 
-active = st.session_state.active_folder
 _, col_main, _ = st.columns([0.15, 3.7, 0.15])
 with col_main:
-    _RENDER_MAP[active]()
+    _RENDER_MAP[st.session_state.active_folder]()

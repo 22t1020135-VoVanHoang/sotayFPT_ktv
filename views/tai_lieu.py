@@ -12,7 +12,7 @@ from views.quy_trinh import render_section_header
 _BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CAU_HINH_DIR = os.path.join(_BASE_DIR, "tailieu", "cau_hinh")
 
-_SUPPORTED_EXT = {".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"}
+_SUPPORTED_EXT = frozenset({".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"})
 _MIME_MAP = {
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".ppt":  "application/vnd.ms-powerpoint",
@@ -20,7 +20,6 @@ _MIME_MAP = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".doc":  "application/msword",
 }
-
 _SUBFOLDERS = {
     "🎓  Tài liệu tân binh": "Tài liệu tân binh",
     "⚙️  Cấu hình thiết bị": "Cấu hình thiết bị",
@@ -65,18 +64,21 @@ _PDF_META: dict[str, dict] = {
         "search_tags": ["skyworth", "wifi6", "wifi 6", "ax3000s", "cấu hình thiết bị", "ont"],
     },
 }
-
 _PDF_META_FALLBACK = {
     "title": "Tài liệu đào tạo triển khai Mesh Wi-Fi 6 GPON Internet Hub AX3000S",
     "desc":  "Tài liệu nội bộ FPT Digital — hướng dẫn cấu hình và thực hành lab (v1.0)",
     "color": "#F26F21", "bg": "#FFF5EF", "border": "rgba(242,111,33,0.2)",
     "search_tags": ["đào tạo", "mesh", "wifi 6", "gpon", "ax3000s", "cấu hình thiết bị", "lab"],
 }
+_PDF_META_DEFAULT_FACTORY = lambda fname: {
+    "title": os.path.splitext(fname)[0],
+    "desc":  "Tài liệu kỹ thuật",
+    "color": "#5A6070", "bg": "#F0F3F8", "border": "rgba(90,96,112,0.15)",
+    "search_tags": ["cấu hình thiết bị"],
+}
 
 
-# ──────────────────────────────────────────────────────────────
-#  Helpers
-# ──────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_pdf_meta(fname: str) -> dict:
     if fname in _PDF_META:
@@ -84,44 +86,34 @@ def _get_pdf_meta(fname: str) -> dict:
     fname_lower = fname.lower()
     if "đào" in fname_lower or "#u0111" in fname_lower or "T#U" in fname:
         return _PDF_META_FALLBACK
-    return {
-        "title": os.path.splitext(fname)[0],
-        "desc":  "Tài liệu kỹ thuật",
-        "color": "#5A6070", "bg": "#F0F3F8", "border": "rgba(90,96,112,0.15)",
-        "search_tags": ["cấu hình thiết bị"],
-    }
+    return _PDF_META_DEFAULT_FACTORY(fname)
 
 
 def _item_matches(item: dict, kw: str) -> bool:
-    """Kiểm tra item có khớp keyword không."""
     if not kw:
         return True
     return (
         any(kw in tag for tag in item.get("search_tags", []))
         or kw in item.get("title", "").lower()
-        or kw in item.get("desc",  "").lower()
+        or kw in item.get("desc", "").lower()
     )
 
 
 def _list_cau_hinh_files() -> list[tuple[str, str, str]]:
-    """Liệt kê file hỗ trợ trong cau_hinh/. Guard isdir() trước listdir()."""
     if not os.path.isdir(_CAU_HINH_DIR):
         return []
     return [
-        (fname, os.path.splitext(fname)[1].lower(), os.path.join(_CAU_HINH_DIR, fname))
+        (fname, ext := os.path.splitext(fname)[1].lower(), os.path.join(_CAU_HINH_DIR, fname))
         for fname in sorted(os.listdir(_CAU_HINH_DIR))
-        if os.path.splitext(fname)[1].lower() in _SUPPORTED_EXT
+        if (ext := os.path.splitext(fname)[1].lower()) in _SUPPORTED_EXT
     ]
 
 
 def count_cau_hinh_files() -> int:
-    """Đếm số file cấu hình (dùng bởi app.py)."""
     return len(_list_cau_hinh_files())
 
 
-# ──────────────────────────────────────────────────────────────
-#  Render subfolder: Tài liệu tân binh
-# ──────────────────────────────────────────────────────────────
+# ── Render: Tài liệu tân binh ─────────────────────────────────────────────────
 
 def _render_tan_binh(keyword: str = "") -> None:
     kw       = keyword.strip().lower()
@@ -166,9 +158,7 @@ def _render_tan_binh(keyword: str = "") -> None:
     )
 
 
-# ──────────────────────────────────────────────────────────────
-#  Render subfolder: Cấu hình thiết bị
-# ──────────────────────────────────────────────────────────────
+# ── Render: Cấu hình thiết bị ─────────────────────────────────────────────────
 
 def _render_cau_hinh(keyword: str = "") -> None:
     kw        = keyword.strip().lower()
@@ -219,17 +209,14 @@ def _render_cau_hinh(keyword: str = "") -> None:
         with open(fpath, "rb") as f:
             st.download_button(
                 label=f"📥  Tải về — {fname}",
-                data=f,
-                file_name=fname,
+                data=f, file_name=fname,
                 mime=_MIME_MAP.get(ext, "application/octet-stream"),
                 key=f"dl_{fname}",
             )
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 
-# ──────────────────────────────────────────────────────────────
-#  Entry point
-# ──────────────────────────────────────────────────────────────
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def render_tai_lieu(keyword: str = "") -> None:
     total = len(_TAN_BINH_ITEMS) + count_cau_hinh_files()
