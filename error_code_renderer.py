@@ -10,7 +10,7 @@ import html as _html
 import streamlit as st
 import openpyxl
 
-# ── Cấu hình màu sắc badge theo nền tảng ────────────────────────────────────
+# ── Cấu hình màu sắc badge theo nền tảng ───
 _SHEET_CONFIG: dict[str, dict] = {
     "SmartTV LG,Sony HTML,SamSung": {
         "icon": "📺", "label": "SmartTV LG,Sony HTML,SamSung",
@@ -83,7 +83,7 @@ li.ec-sub{font-size:0.78rem;color:#7A8899;margin-left:12px;list-style-type:circl
 </style>"""
 
 
-# ── Parse dữ liệu ────────────────────────────────────────────────────────────
+# ── Parse dữ liệu ───
 
 def _clean(val) -> str:
     return str(val).strip() if val is not None else ""
@@ -175,7 +175,7 @@ def _parse_sheet(ws, sheet_name: str) -> list[dict]:
     return rows
 
 
-# ── Format nội dung → HTML ───────────────────────────────────────────────────
+# ── Format nội dung → HTML ──
 
 _STEP_RE   = re.compile(r"^(B\d+|Bước\s*\d+)\s*[:.]?\s*", re.IGNORECASE)
 _BULLET_RE = re.compile(r"^[-•]\s+")
@@ -226,7 +226,7 @@ def _format_detail_html(text: str) -> str:
     return "\n".join(parts)
 
 
-# ── Render card ──────────────────────────────────────────────────────────────
+# ── Render card ──
 
 def _render_card(row: dict, cfg: dict, card_key: str, is_open: bool) -> bool:
     """Render 1 accordion card. Trả về True nếu user vừa click."""
@@ -276,7 +276,7 @@ def _render_card(row: dict, cfg: dict, card_key: str, is_open: bool) -> bool:
     )
 
 
-# ── Entry point ──────────────────────────────────────────────────────────────
+# ── Entry point ───
 
 @st.cache_data(ttl=120)
 def _load_error_data(xlsx_path: str) -> dict[str, list[dict]]:

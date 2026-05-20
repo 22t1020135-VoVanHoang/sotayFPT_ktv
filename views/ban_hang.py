@@ -6,7 +6,7 @@ Render tab "Bán hàng": Accordion khu vực → Cards gói cước.
 import streamlit as st
 from views.quy_trinh import render_section_header
 
-# ── Màu sắc theo gói ─────────────────────────────────────────────────────────
+# ── Màu sắc theo gói ──
 _C = {
     "GIGA":     {"bg": "#EFF6FF", "border": "#005DA3", "text": "#005DA3", "sub_bg": "#E8F2FF"},
     "SKY":      {"bg": "#FFF5EF", "border": "#F26F21", "text": "#C04800", "sub_bg": "#FFF0E8"},
@@ -14,7 +14,7 @@ _C = {
     "GIGA_CAM": {"bg": "#FFFBEB", "border": "#D97706", "text": "#92400E", "sub_bg": "#FFF8E0"},
 }
 
-# ── Dữ liệu gói cước ─────────────────────────────────────────────────────────
+# ── Dữ liệu gói cước ───
 # Để gọn, helper tạo item gói
 def _goi(label, net, app, box, phi_list):
     return {"label": label, "net": net, "combo_app": app, "combo_box": box, "phi": phi_list}
@@ -193,7 +193,7 @@ _BH_CSS = """<style>
 </style>"""
 
 
-# ── HTML builders ─────────────────────────────────────────────────────────────
+# ── HTML builders ───
 
 def _col_header(sport: bool = False) -> str:
     if sport:
@@ -275,7 +275,7 @@ def _render_sport_card(goi: dict) -> str:
     )
 
 
-# ── Accordion: nội dung khu vực ───────────────────────────────────────────────
+# ── Accordion: nội dung khu vực ───
 
 def _render_area_content(area_key: str) -> None:
     if area_key == "Combo Thể Thao":
@@ -296,7 +296,7 @@ def _render_area_content(area_key: str) -> None:
             st.markdown(_render_goi_card(goi), unsafe_allow_html=True)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Entry point ───
 
 def render_ban_hang(data: list, keyword: str = "") -> None:
     st.markdown(_BH_CSS, unsafe_allow_html=True)

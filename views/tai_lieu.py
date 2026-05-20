@@ -78,7 +78,7 @@ _PDF_META_DEFAULT_FACTORY = lambda fname: {
 }
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ────
 
 def _get_pdf_meta(fname: str) -> dict:
     if fname in _PDF_META:
@@ -113,7 +113,7 @@ def count_cau_hinh_files() -> int:
     return len(_list_cau_hinh_files())
 
 
-# ── Render: Tài liệu tân binh ─────────────────────────────────────────────────
+# ── Render: Tài liệu tân binh ────
 
 def _render_tan_binh(keyword: str = "") -> None:
     kw       = keyword.strip().lower()
@@ -158,7 +158,7 @@ def _render_tan_binh(keyword: str = "") -> None:
     )
 
 
-# ── Render: Cấu hình thiết bị ─────────────────────────────────────────────────
+# ── Render: Cấu hình thiết bị ────
 
 def _render_cau_hinh(keyword: str = "") -> None:
     kw        = keyword.strip().lower()
@@ -216,7 +216,7 @@ def _render_cau_hinh(keyword: str = "") -> None:
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Entry point ────
 
 def render_tai_lieu(keyword: str = "") -> None:
     total = len(_TAN_BINH_ITEMS) + count_cau_hinh_files()

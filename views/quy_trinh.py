@@ -21,7 +21,7 @@ _EMPTY_HTML = (
 )
 
 
-# ── Shared helpers ────────────────────────────────────────────────────────────
+# ── Shared helpers ────
 
 def render_section_header(icon: str, title: str, count: int | None = None) -> None:
     count_html = f"<span class='fpt-section-count'>{count} mục</span>" if count is not None else ""
@@ -57,7 +57,7 @@ def render_expander_list(rows: list[dict], keyword: str = "", show_empty: bool =
             st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
 
 
-# ── Tab Quy trình ─────────────────────────────────────────────────────────────
+# ── Tab Quy trình ───
 
 def render_quy_trinh(data: list[dict], keyword: str = "") -> None:
     rows = [r for r in data if r["folder"] == "Quy trình"]
@@ -70,7 +70,7 @@ def render_quy_trinh(data: list[dict], keyword: str = "") -> None:
     render_expander_list(rows, keyword)
 
 
-# ── Tab Xử lý sự cố ──────────────────────────────────────────────────────────
+# ── Tab Xử lý sự cố ───
 
 def _doc_card_html(icon: str, title: str, desc: str,
                    color: str, bg: str, border: str) -> str:

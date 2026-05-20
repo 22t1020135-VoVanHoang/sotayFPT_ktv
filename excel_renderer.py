@@ -7,7 +7,7 @@ import os
 import streamlit as st
 import openpyxl
 
-# ── Màu theme mặc định của Office ──────────────────────────────────────────
+# ── Màu theme mặc định của Office ───
 _OFFICE_THEME: dict[int, tuple[int, int, int]] = {
     0: (0, 0, 0),       1: (255, 255, 255),
     2: (68, 84, 106),   3: (231, 230, 230),
@@ -18,7 +18,7 @@ _OFFICE_THEME: dict[int, tuple[int, int, int]] = {
 _TRANSPARENT = frozenset({"00000000", "FFFFFFFF", "00FFFFFF"})
 _MONEY_UNITS = ("K", "đ", "VND", "%")
 
-# ── Style strings dùng chung ────────────────────────────────────────────────
+# ── Style strings dùng chung ───
 _S_WRAP  = (
     "overflow-x:auto;-webkit-overflow-scrolling:touch;"
     "border-radius:12px;border:1px solid #E4E9F0;"
@@ -39,7 +39,7 @@ _S_HEAD  = (
 _S_MONEY = "color:#c04800;font-weight:700;"
 
 
-# ── Helpers màu sắc ─────────────────────────────────────────────────────────
+# ── Helpers màu sắc ───
 
 def _hex_to_rgb(hex_str: str) -> tuple[int, int, int] | None:
     if not hex_str or hex_str in _TRANSPARENT:
@@ -119,7 +119,7 @@ def _cell_extra_css(cell) -> str:
     return "".join(parts)
 
 
-# ── Render worksheet ─────────────────────────────────────────────────────────
+# ── Render worksheet ───
 
 def _render_ws_html(ws) -> str:
     max_row, max_col = ws.max_row, ws.max_column

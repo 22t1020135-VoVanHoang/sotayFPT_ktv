@@ -22,7 +22,7 @@ from views.tai_lieu import render_tai_lieu, count_cau_hinh_files
 
 inject_css()
 
-# ── Load dữ liệu ─────────────────────────────────────────────────────────────
+# ── Load dữ liệu ──
 
 try:
     DATA = load_data()
@@ -36,7 +36,7 @@ except Exception as e:
     st.error(f"❌ Lỗi đọc file SO_TAY_KTV.xlsx: {e}")
     st.stop()
 
-# ── Logo ──────────────────────────────────────────────────────────────────────
+# ── Logo ──
 
 _APP_BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -62,7 +62,7 @@ _logo_img = (
     else '<span style="font-weight:800;color:#F26F21;font-size:1.1rem;">FPT</span>'
 )
 
-# ── Navbar ────────────────────────────────────────────────────────────────────
+# ── Navbar ──
 
 st.markdown(
     f'<div class="fpt-nav"><div class="fpt-nav-brand">{_logo_img}'
@@ -71,7 +71,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Hero ──────────────────────────────────────────────────────────────────────
+# ── Hero ──
 
 st.markdown("""
 <div class="fpt-hero">
@@ -83,7 +83,7 @@ st.markdown("""
 
 st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
 
-# ── Thanh tìm kiếm ───────────────────────────────────────────────────────────
+# ── Thanh tìm kiếm ──
 
 _, col_search, _ = st.columns([0.5, 3, 0.5])
 with col_search:
@@ -96,13 +96,13 @@ kw = keyword.strip()
 
 st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 
-# ── Session state ─────────────────────────────────────────────────────────────
+# ── Session state ──
 
 st.session_state.setdefault("active_folder",    "Quy trình")
 st.session_state.setdefault("active_subfolder", "Tài liệu tân binh")
 st.session_state.setdefault("_last_kw",         "")
 
-# ── Tags tĩnh cho smart search ────────────────────────────────────────────────
+# ── Tags tĩnh cho smart search ──
 
 _XU_LY_TAGS  = frozenset({"camera fpt life", "các vấn đề thường gặp", "mã lỗi fpt play",
                            "smarttv", "android", "ios", "firmware"})
@@ -125,7 +125,7 @@ _XU_LY_EXTS = frozenset({".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".do
 _TAN_BINH_COUNT = 3
 
 
-# ── Helpers đếm hits / tổng ───────────────────────────────────────────────────
+# ── Helpers đếm hits / tổng ──
 
 def _data_hits(folder_key: str, kw_lower: str) -> int:
     return sum(
@@ -158,7 +158,7 @@ def _count_total(folder_key: str) -> int:
     return sum(1 for r in DATA if r["folder"] == folder_key)
 
 
-# ── Smart search: tự động chuyển tab phù hợp nhất ────────────────────────────
+# ── Smart search: tự động chuyển tab phù hợp nhất ──
 
 if kw and kw != st.session_state._last_kw:
     kw_lower   = kw.lower()
@@ -177,7 +177,7 @@ if kw and kw != st.session_state._last_kw:
 if not kw:
     st.session_state._last_kw = ""
 
-# ── Banner kết quả tìm kiếm ───────────────────────────────────────────────────
+# ── Banner kết quả tìm kiếm ──
 
 if kw:
     kw_lower   = kw.lower()
@@ -200,7 +200,7 @@ if kw:
             unsafe_allow_html=True,
         )
 
-# ── Folder tabs ───────────────────────────────────────────────────────────────
+# ── Folder tabs ──
 
 _, c1, c2, c3, c4, _ = st.columns([0.5, 1, 1, 1, 1, 0.5])
 for col, (label, folder_key) in zip([c1, c2, c3, c4], FOLDERS.items()):
@@ -225,7 +225,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Nội dung folder ───────────────────────────────────────────────────────────
+# ── Nội dung folder ──
 
 _RENDER_MAP = {
     "Quy trình":    lambda: render_quy_trinh(DATA, kw),
