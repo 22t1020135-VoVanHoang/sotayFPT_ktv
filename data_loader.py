@@ -1,10 +1,16 @@
 """
 data_loader.py
 Load và parse SO_TAY_KTV.xlsx bằng openpyxl.
+
+Cơ chế tự động reload:
+  - get_file_mtime()  : kiểm tra thời điểm file Excel thay đổi gần nhất
+  - load_data(mtime)  : cache theo mtime — hễ file được lưu là cache tự hết hạn,
+                        Streamlit đọc lại file mà KHÔNG cần restart app.
 """
 
 import os
 import openpyxl
+import streamlit as st
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _SEARCH_PATHS = (
@@ -22,9 +28,26 @@ def _find_file() -> str:
     raise FileNotFoundError(f"Không tìm thấy SO_TAY_KTV.xlsx trong: {_SEARCH_PATHS}")
 
 
-def load_data() -> list[dict]:
+def get_file_mtime() -> float:
+    """
+    Trả về thời điểm chỉnh sửa cuối cùng của file Excel (epoch seconds).
+    Hàm này KHÔNG cache — được gọi mỗi lần Streamlit rerun để phát hiện thay đổi.
+    Trả về 0.0 nếu không tìm thấy file (để app hiện lỗi ở bước load_data).
+    """
+    try:
+        return os.path.getmtime(_find_file())
+    except FileNotFoundError:
+        return 0.0
+
+
+@st.cache_data(show_spinner="⏳ Đang tải dữ liệu...")
+def load_data(_file_mtime: float) -> list[dict]:
     """
     Đọc SO_TAY_KTV.xlsx, trả về list[dict] với keys: 'ten', 'buoc', 'folder'.
+
+    Tham số _file_mtime là khoá cache: mỗi khi file Excel được lưu,
+    mtime thay đổi → Streamlit tự động đọc lại file mà không cần restart.
+
     Raise FileNotFoundError / ValueError nếu có lỗi.
     """
     file_path = _find_file()

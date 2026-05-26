@@ -15,17 +15,37 @@ st.set_page_config(
 )
 
 from styles import inject_css
-from data_loader import load_data
+from data_loader import load_data, get_file_mtime
 from views.quy_trinh import render_quy_trinh, render_xu_ly_su_co
 from views.ban_hang import render_ban_hang
 from views.tai_lieu import render_tai_lieu, count_cau_hinh_files
 
 inject_css()
 
+# ── Auto-refresh: cứ 3 giây tự kiểm tra file Excel thay đổi chưa ──
+# Dùng st.fragment + time.sleep — không cần cài thêm thư viện nào.
+import time as _time
+
+@st.fragment(run_every=3)
+def _watch_excel():
+    """Fragment này rerun mỗi 3 giây, kiểm tra mtime file Excel.
+    Nếu file thay đổi → xóa cache load_data → rerun toàn app."""
+    current_mtime = get_file_mtime()
+    if "_excel_mtime" not in st.session_state:
+        st.session_state._excel_mtime = current_mtime
+    if current_mtime != st.session_state._excel_mtime:
+        st.session_state._excel_mtime = current_mtime
+        load_data.clear()   # xóa cache cũ
+        st.rerun()          # rerun toàn bộ app
+
+_watch_excel()
+
 # ── Load dữ liệu ──
+# get_file_mtime() chạy mỗi lần rerun (không cache) để phát hiện file thay đổi.
+# load_data() cache theo mtime — tự reload khi file Excel được lưu.
 
 try:
-    DATA = load_data()
+    DATA = load_data(get_file_mtime())
 except FileNotFoundError:
     st.error("❌ Không tìm thấy file **SO_TAY_KTV.xlsx**.")
     st.stop()
