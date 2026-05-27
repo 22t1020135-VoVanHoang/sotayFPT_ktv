@@ -14,35 +14,69 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-from styles import inject_css
+import streamlit.components.v1 as components
+from styles import inject_css, render_theme_toggle
 from data_loader import load_data, get_file_mtime
 from views.quy_trinh import render_quy_trinh, render_xu_ly_su_co
 from views.ban_hang import render_ban_hang
 from views.tai_lieu import render_tai_lieu, count_cau_hinh_files
 
+# ── Hằng số ──────────────────────────────────────────────────────────────────
+
+_APP_BASE = os.path.dirname(os.path.abspath(__file__))
+_XU_LY_DIR = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
+_XU_LY_EXTS = frozenset({".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"})
+_TAN_BINH_COUNT = 3
+
+FOLDER_KEYS = ["Quy trình", "Xử lý sự cố", "Bán hàng", "Tài liệu"]
+FOLDERS = {
+    "📂  Quy trình":    "Quy trình",
+    "🔧  Xử lý sự cố": "Xử lý sự cố",
+    "🛒  Bán hàng":     "Bán hàng",
+    "📁  Tài liệu":     "Tài liệu",
+}
+
+# Tags dùng cho smart search (tìm tab phù hợp nhất)
+_XU_LY_TAGS = frozenset({
+    "camera fpt life", "các vấn đề thường gặp", "mã lỗi fpt play",
+    "smarttv", "android", "ios", "firmware",
+})
+_TAI_LIEU_TAGS = frozenset({
+    "tài liệu tân binh", "kỹ năng", "chuyên môn", "chính sách chế độ",
+    "cấu hình thiết bị", "internet hub ax3000s", "skyworth wifi6",
+    "hướng dẫn sử dụng", "đào tạo", "mesh wifi",
+})
+_CAU_HINH_KW = frozenset({
+    "cấu hình", "thiết bị", "ax3000s", "skyworth", "wifi6",
+    "internet hub", "đào tạo", "mesh",
+})
+
+_RENDER_MAP = {
+    "Quy trình":    lambda data, kw: render_quy_trinh(data, kw),
+    "Xử lý sự cố": lambda data, kw: render_xu_ly_su_co(data, kw),
+    "Bán hàng":     lambda data, kw: render_ban_hang(data, kw),
+    "Tài liệu":     lambda data, kw: render_tai_lieu(kw),
+}
+
+# ── Khởi tạo ─────────────────────────────────────────────────────────────────
+
 inject_css()
 
-# ── Auto-refresh: cứ 3 giây tự kiểm tra file Excel thay đổi chưa ──
-# Dùng st.fragment + time.sleep — không cần cài thêm thư viện nào.
-import time as _time
 
 @st.fragment(run_every=3)
 def _watch_excel():
-    """Fragment này rerun mỗi 3 giây, kiểm tra mtime file Excel.
-    Nếu file thay đổi → xóa cache load_data → rerun toàn app."""
+    """Kiểm tra mtime file Excel mỗi 3 giây. Nếu file thay đổi → xóa cache và rerun."""
     current_mtime = get_file_mtime()
     if "_excel_mtime" not in st.session_state:
         st.session_state._excel_mtime = current_mtime
+        return
     if current_mtime != st.session_state._excel_mtime:
         st.session_state._excel_mtime = current_mtime
-        load_data.clear()   # xóa cache cũ
-        st.rerun()          # rerun toàn bộ app
+        load_data.clear()
+        st.rerun()
+
 
 _watch_excel()
-
-# ── Load dữ liệu ──
-# get_file_mtime() chạy mỗi lần rerun (không cache) để phát hiện file thay đổi.
-# load_data() cache theo mtime — tự reload khi file Excel được lưu.
 
 try:
     DATA = load_data(get_file_mtime())
@@ -56,13 +90,12 @@ except Exception as e:
     st.error(f"❌ Lỗi đọc file SO_TAY_KTV.xlsx: {e}")
     st.stop()
 
-# ── Logo ──
 
-_APP_BASE = os.path.dirname(os.path.abspath(__file__))
-
+# ── Logo ─────────────────────────────────────────────────────────────────────
 
 @st.cache_data
 def _logo_b64() -> str:
+    """Đọc logo.png, trả về chuỗi base64. Trả về chuỗi rỗng nếu không tìm thấy."""
     for path in (
         os.path.join(_APP_BASE, "logo.png"),
         os.path.join(_APP_BASE, "tailieu", "logo.png"),
@@ -82,16 +115,58 @@ _logo_img = (
     else '<span style="font-weight:800;color:#F26F21;font-size:1.1rem;">FPT</span>'
 )
 
-# ── Navbar ──
+
+# ── Navbar ───────────────────────────────────────────────────────────────────
 
 st.markdown(
-    f'<div class="fpt-nav"><div class="fpt-nav-brand">{_logo_img}'
+    f'<div class="fpt-nav">'
+    f'<div class="fpt-nav-brand">{_logo_img}'
     f'<div><div class="fpt-nav-title">Sổ Tay KTV</div>'
-    f'<div class="fpt-nav-subtitle">Kỹ thuật viên — Tra cứu nhanh</div></div></div></div>',
+    f'<div class="fpt-nav-subtitle">Kỹ thuật viên — Tra cứu nhanh</div></div></div>'
+    f'{render_theme_toggle()}'
+    f'</div>',
     unsafe_allow_html=True,
 )
 
-# ── Hero ──
+# Script chạy trong iframe (không bị sandbox), truy cập window.parent để gắn sự kiện toggle theme.
+components.html("""
+<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style>
+</head><body><script>
+(function attach() {
+  var KEY  = 'fpt_theme';
+  var PDOC = window.parent ? window.parent.document : null;
+  if (!PDOC) return;
+
+  function applyTheme(theme) {
+    PDOC.documentElement.setAttribute('data-fpt-theme', theme);
+    var btn = PDOC.getElementById('fpt-toggle-btn');
+    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  }
+
+  var saved = localStorage.getItem(KEY);
+  if (!saved) {
+    saved = window.parent.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    localStorage.setItem(KEY, saved);
+  }
+  applyTheme(saved);
+
+  function bindToggle() {
+    var btn = PDOC.getElementById('fpt-toggle-btn');
+    if (!btn) { setTimeout(bindToggle, 200); return; }
+    btn.onclick = function() {
+      var next = localStorage.getItem(KEY) === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(KEY, next);
+      applyTheme(next);
+    };
+  }
+  bindToggle();
+})();
+</script></body></html>
+""", height=0, scrolling=False)
+
+
+# ── Hero ─────────────────────────────────────────────────────────────────────
 
 st.markdown("""
 <div class="fpt-hero">
@@ -103,7 +178,8 @@ st.markdown("""
 
 st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
 
-# ── Thanh tìm kiếm ──
+
+# ── Thanh tìm kiếm ───────────────────────────────────────────────────────────
 
 _, col_search, _ = st.columns([0.5, 3, 0.5])
 with col_search:
@@ -116,38 +192,18 @@ kw = keyword.strip()
 
 st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 
-# ── Session state ──
+
+# ── Session state mặc định ───────────────────────────────────────────────────
 
 st.session_state.setdefault("active_folder",    "Quy trình")
 st.session_state.setdefault("active_subfolder", "Tài liệu tân binh")
 st.session_state.setdefault("_last_kw",         "")
 
-# ── Tags tĩnh cho smart search ──
 
-_XU_LY_TAGS  = frozenset({"camera fpt life", "các vấn đề thường gặp", "mã lỗi fpt play",
-                           "smarttv", "android", "ios", "firmware"})
-_TAI_LIEU_TAGS = frozenset({"tài liệu tân binh", "kỹ năng", "chuyên môn", "chính sách chế độ",
-                             "cấu hình thiết bị", "internet hub ax3000s", "skyworth wifi6",
-                             "hướng dẫn sử dụng", "đào tạo", "mesh wifi"})
-_CAU_HINH_KW = frozenset({"cấu hình", "thiết bị", "ax3000s", "skyworth", "wifi6",
-                           "internet hub", "đào tạo", "mesh"})
-
-FOLDER_KEYS = ["Quy trình", "Xử lý sự cố", "Bán hàng", "Tài liệu"]
-FOLDERS = {
-    "📂  Quy trình":    "Quy trình",
-    "🔧  Xử lý sự cố": "Xử lý sự cố",
-    "🛒  Bán hàng":     "Bán hàng",
-    "📁  Tài liệu":     "Tài liệu",
-}
-
-_XU_LY_DIR  = os.path.join(_APP_BASE, "tailieu", "xu_ly_su_co")
-_XU_LY_EXTS = frozenset({".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"})
-_TAN_BINH_COUNT = 3
-
-
-# ── Helpers đếm hits / tổng ──
+# ── Helpers đếm kết quả ──────────────────────────────────────────────────────
 
 def _data_hits(folder_key: str, kw_lower: str) -> int:
+    """Đếm số bản ghi trong DATA khớp với keyword và folder."""
     return sum(
         1 for r in DATA
         if r["folder"] == folder_key
@@ -156,6 +212,7 @@ def _data_hits(folder_key: str, kw_lower: str) -> int:
 
 
 def _count_hits(folder_key: str, kw_lower: str) -> int:
+    """Đếm tổng số hits (bao gồm tags tĩnh) theo folder."""
     if not kw_lower:
         return 0
     data_count = _data_hits(folder_key, kw_lower)
@@ -167,6 +224,7 @@ def _count_hits(folder_key: str, kw_lower: str) -> int:
 
 
 def _count_total(folder_key: str) -> int:
+    """Đếm tổng số mục trong một folder."""
     if folder_key == "Xử lý sự cố":
         file_count = (
             sum(1 for f in os.listdir(_XU_LY_DIR) if os.path.splitext(f)[1].lower() in _XU_LY_EXTS)
@@ -178,12 +236,12 @@ def _count_total(folder_key: str) -> int:
     return sum(1 for r in DATA if r["folder"] == folder_key)
 
 
-# ── Smart search: tự động chuyển tab phù hợp nhất ──
+# ── Smart search: tự chuyển tab phù hợp nhất ─────────────────────────────────
 
 if kw and kw != st.session_state._last_kw:
-    kw_lower   = kw.lower()
+    kw_lower = kw.lower()
     hit_counts = {fk: _count_hits(fk, kw_lower) for fk in FOLDER_KEYS}
-    best       = max(hit_counts, key=hit_counts.get)
+    best = max(hit_counts, key=hit_counts.get)
     if hit_counts[best] > 0:
         st.session_state.active_folder = best
         if best == "Tài liệu":
@@ -197,10 +255,11 @@ if kw and kw != st.session_state._last_kw:
 if not kw:
     st.session_state._last_kw = ""
 
-# ── Banner kết quả tìm kiếm ──
+
+# ── Banner kết quả tìm kiếm ──────────────────────────────────────────────────
 
 if kw:
-    kw_lower   = kw.lower()
+    kw_lower = kw.lower()
     hit_counts = {fk: _count_hits(fk, kw_lower) for fk in FOLDER_KEYS}
     total_hits = sum(hit_counts.values())
 
@@ -220,7 +279,8 @@ if kw:
             unsafe_allow_html=True,
         )
 
-# ── Folder tabs ──
+
+# ── Tabs folder ──────────────────────────────────────────────────────────────
 
 _, c1, c2, c3, c4, _ = st.columns([0.5, 1, 1, 1, 1, 0.5])
 for col, (label, folder_key) in zip([c1, c2, c3, c4], FOLDERS.items()):
@@ -245,15 +305,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Nội dung folder ──
 
-_RENDER_MAP = {
-    "Quy trình":    lambda: render_quy_trinh(DATA, kw),
-    "Xử lý sự cố": lambda: render_xu_ly_su_co(DATA, kw),
-    "Bán hàng":     lambda: render_ban_hang(DATA, kw),
-    "Tài liệu":     lambda: render_tai_lieu(kw),
-}
+# ── Render nội dung folder ───────────────────────────────────────────────────
 
 _, col_main, _ = st.columns([0.15, 3.7, 0.15])
 with col_main:
-    _RENDER_MAP[st.session_state.active_folder]()
+    active = st.session_state.active_folder
+    RENDER_MAP = {
+        "Quy trình":    lambda: render_quy_trinh(DATA, kw),
+        "Xử lý sự cố": lambda: render_xu_ly_su_co(DATA, kw),
+        "Bán hàng":     lambda: render_ban_hang(DATA, kw),
+        "Tài liệu":     lambda: render_tai_lieu(kw),
+    }
+    RENDER_MAP[active]()

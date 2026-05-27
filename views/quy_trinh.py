@@ -21,9 +21,10 @@ _EMPTY_HTML = (
 )
 
 
-# ── Shared helpers ────
+# ── Shared helpers ────────────────────────────────────────────────────────────
 
 def render_section_header(icon: str, title: str, count: int | None = None) -> None:
+    """Render tiêu đề section với icon và badge số mục."""
     count_html = f"<span class='fpt-section-count'>{count} mục</span>" if count is not None else ""
     st.markdown(
         f'<div class="fpt-section-header">'
@@ -57,11 +58,11 @@ def render_expander_list(rows: list[dict], keyword: str = "", show_empty: bool =
             st.markdown(highlight_text(row["buoc"], keyword), unsafe_allow_html=True)
 
 
-# ── Tab Quy trình ───
+# ── Tab Quy trình ─────────────────────────────────────────────────────────────
 
 def render_quy_trinh(data: list[dict], keyword: str = "") -> None:
     rows = [r for r in data if r["folder"] == "Quy trình"]
-    kw   = keyword.strip().lower()
+    kw = keyword.strip().lower()
     count = (
         sum(1 for r in rows if kw in r["ten"].lower() or kw in r["buoc"].lower())
         if kw else len(rows)
@@ -70,10 +71,9 @@ def render_quy_trinh(data: list[dict], keyword: str = "") -> None:
     render_expander_list(rows, keyword)
 
 
-# ── Tab Xử lý sự cố ───
+# ── Tab Xử lý sự cố ──────────────────────────────────────────────────────────
 
-def _doc_card_html(icon: str, title: str, desc: str,
-                   color: str, bg: str, border: str) -> str:
+def _doc_card_html(icon: str, title: str, desc: str, color: str, bg: str, border: str) -> str:
     return (
         f'<div class="doc-card" style="border-color:{border};border-left:3px solid {color};margin-bottom:10px;">'
         f'  <div class="doc-card-icon" style="background:{bg};">{icon}</div>'

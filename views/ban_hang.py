@@ -149,47 +149,248 @@ _AREA_CONFIG = [
 ]
 
 _BH_CSS = """<style>
-.bh-card{background:#fff;border-radius:16px;margin-bottom:18px;overflow:hidden;
-  box-shadow:0 2px 14px rgba(0,0,0,0.06);border:1.5px solid #EDF0F5;font-family:'Sora',sans-serif}
-.bh-card-header{padding:16px 20px 13px;border-bottom:1px solid rgba(0,0,0,0.06)}
-.bh-card-title{font-size:1.02rem;font-weight:800;letter-spacing:-0.3px;margin-bottom:2px}
-.bh-card-bw{font-size:0.74rem;color:#8896A5;font-weight:400}
-.bh-note-badge{display:inline-block;margin-top:9px;background:rgba(217,119,6,0.09);
-  color:#92400E;font-size:0.74rem;font-weight:600;padding:4px 11px;border-radius:8px;
-  border:1px solid rgba(217,119,6,0.22);line-height:1.45}
-.bh-col-header{display:flex;align-items:center;padding:8px 20px;
-  background:#F7F8FA;border-bottom:1px solid #EDF0F5;gap:0}
-.bh-col-h-label{flex:2 1 0;font-size:0.68rem;font-weight:700;color:#A0AEBB;
-  text-transform:uppercase;letter-spacing:0.6px}
-.bh-col-h-price{flex:1 1 0;font-size:0.68rem;font-weight:700;color:#A0AEBB;
-  text-transform:uppercase;letter-spacing:0.6px;text-align:center}
-.bh-item-row{display:flex;align-items:center;padding:12px 20px;
-  border-bottom:1px solid #F2F5F8;gap:0;transition:background 0.15s}
-.bh-item-row:hover{background:#FAFBFD}
-.bh-item-label{flex:2 1 0;font-size:0.9rem;font-weight:700;line-height:1.3}
-.bh-item-price{flex:1 1 0;text-align:center;font-size:0.95rem;font-weight:800;letter-spacing:-0.3px}
-.bh-sub-row{display:flex;align-items:center;padding:7px 20px 7px 32px;
-  border-bottom:1px solid #F2F5F8;background:#FAFBFD;gap:0}
-.bh-sub-row:last-child{border-bottom:2px solid #EDF0F5}
-.bh-sub-label{flex:2 1 0;font-size:0.76rem;color:#8896A5;font-weight:400;line-height:1.3}
-.bh-sub-price{flex:1 1 0;text-align:center;font-size:0.8rem;color:#8896A5;font-weight:500}
-.bh-item-sep{height:1px;background:linear-gradient(90deg,transparent,#E8EDF5 20%,#E8EDF5 80%,transparent);margin:0 20px}
-.bh-sport-row{display:flex;align-items:center;padding:12px 20px;
-  border-bottom:1px solid #F2F5F8;gap:0;transition:background 0.15s}
-.bh-sport-row:hover{background:#FAFBFD}
-.bh-sport-label{flex:2 1 0;font-size:0.9rem;font-weight:700}
-.bh-sport-price{flex:1 1 0;text-align:center;font-size:0.95rem;font-weight:800;letter-spacing:-0.3px}
-.bh-sport-phm{flex:1 1 0;text-align:center;font-size:0.82rem;color:#8896A5;font-weight:500}
-.bh-global-note{background:linear-gradient(135deg,#EDE9FE 0%,#F5F3FF 100%);
-  border:1px solid #C4B5FD;border-radius:12px;padding:13px 18px;margin-bottom:18px;
-  font-size:0.82rem;color:#5B21B6;font-weight:500;font-family:'Sora',sans-serif;line-height:1.5}
+/* ── BAN HANG CARDS — dùng CSS variables, tự thích ứng Light/Dark ── */
+
+.bh-card {
+  background: var(--card-bg, #fff);
+  border-radius: 16px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow, 0 2px 14px rgba(0,0,0,0.06));
+  border: 1.5px solid var(--card-border, #EDF0F5);
+  font-family: 'Sora', sans-serif;
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+/* ── Card header: nền màu gói được set inline qua Python.
+   Dark mode: dùng overlay tối bên trên để giữ tông màu nhưng tối hơn ── */
+.bh-card-header {
+  padding: 16px 20px 13px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  position: relative;
+}
+[data-fpt-theme="dark"] .bh-card-header {
+  border-bottom-color: rgba(255,255,255,0.07) !important;
+}
+/* Overlay làm tối nền header ở dark mode mà không xóa tông màu gói */
+[data-fpt-theme="dark"] .bh-card-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  pointer-events: none;
+  z-index: 0;
+}
+.bh-card-header > * { position: relative; z-index: 1; }
+
+.bh-card-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin-bottom: 2px;
+  /* màu text được set inline qua Python — dark override bên dưới */
+}
+[data-fpt-theme="dark"] .bh-card-title {
+  color: #E8ECF0 !important;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+.bh-card-bw {
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: #6B7A8D;
+}
+[data-fpt-theme="dark"] .bh-card-bw {
+  color: #A0B0C4 !important;
+}
+
+.bh-note-badge {
+  display: inline-block;
+  margin-top: 9px;
+  background: rgba(217,119,6,0.09);
+  color: #92400E;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(217,119,6,0.22);
+  line-height: 1.45;
+}
+[data-fpt-theme="dark"] .bh-note-badge {
+  background: rgba(255,176,122,0.15) !important;
+  color: #FFB07A !important;
+  border-color: rgba(255,176,122,0.35) !important;
+}
+
+/* ── Column header (LOẠI THIẾT BỊ / NET / COMBO APP / COMBO BOX) ── */
+.bh-col-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 20px;
+  background: var(--tbl-head-bg, #F7F8FA);
+  border-bottom: 1px solid var(--border-subtle, #EDF0F5);
+  gap: 0;
+  transition: background 0.25s, border-color 0.25s;
+}
+.bh-col-h-label {
+  flex: 2 1 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted, #A0AEBB);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.bh-col-h-price {
+  flex: 1 1 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted, #A0AEBB);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  text-align: center;
+}
+
+/* ── Item rows ── */
+.bh-item-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle, #F2F5F8);
+  gap: 0;
+  transition: background 0.15s;
+  background: var(--card-bg, #fff);
+}
+.bh-item-row:hover {
+  background: var(--bg-surface-alt, #FAFBFD) !important;
+}
+.bh-item-label {
+  flex: 2 1 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  /* màu set inline — dark override */
+}
+[data-fpt-theme="dark"] .bh-item-label {
+  filter: brightness(1.6) saturate(0.9) !important;
+}
+.bh-item-price {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  /* màu set inline — dark override */
+}
+[data-fpt-theme="dark"] .bh-item-price {
+  filter: brightness(1.6) saturate(0.9) !important;
+}
+
+/* ── Sub rows (Phí hoà mạng) ── */
+.bh-sub-row {
+  display: flex;
+  align-items: center;
+  padding: 7px 20px 7px 32px;
+  border-bottom: 1px solid var(--border-subtle, #F2F5F8);
+  background: var(--bg-surface-alt, #FAFBFD);
+  gap: 0;
+  transition: background 0.25s;
+}
+[data-fpt-theme="dark"] .bh-sub-row {
+  background: #111620 !important;
+}
+.bh-sub-row:last-child {
+  border-bottom: 2px solid var(--border-default, #EDF0F5);
+}
+.bh-sub-label {
+  flex: 2 1 0;
+  font-size: 0.76rem;
+  color: var(--text-muted, #8896A5);
+  font-weight: 400;
+  line-height: 1.3;
+}
+.bh-sub-price {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #8896A5);
+  font-weight: 500;
+}
+[data-fpt-theme="dark"] .bh-sub-price {
+  color: #9BAABB !important;
+}
+
+/* ── Separator ── */
+.bh-item-sep {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-default, #E8EDF5) 20%, var(--border-default, #E8EDF5) 80%, transparent);
+  margin: 0 20px;
+}
+
+/* ── Sport rows ── */
+.bh-sport-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle, #F2F5F8);
+  gap: 0;
+  transition: background 0.15s;
+  background: var(--card-bg, #fff);
+}
+.bh-sport-row:hover { background: var(--bg-surface-alt, #FAFBFD) !important; }
+.bh-sport-label {
+  flex: 2 1 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary, #0F1827);
+}
+[data-fpt-theme="dark"] .bh-sport-label {
+  color: #E8ECF0 !important;
+}
+.bh-sport-price {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+[data-fpt-theme="dark"] .bh-sport-price {
+  filter: brightness(1.5) !important;
+}
+.bh-sport-phm {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted, #8896A5);
+  font-weight: 500;
+}
+
+/* ── Global note (banner) ── */
+.bh-global-note {
+  background: linear-gradient(135deg, #EDE9FE 0%, #F5F3FF 100%);
+  border: 1px solid #C4B5FD;
+  border-radius: 12px;
+  padding: 13px 18px;
+  margin-bottom: 18px;
+  font-size: 0.82rem;
+  color: #5B21B6;
+  font-weight: 500;
+  font-family: 'Sora', sans-serif;
+  line-height: 1.5;
+}
+[data-fpt-theme="dark"] .bh-global-note {
+  background: linear-gradient(135deg, #1A0F35 0%, #120A2A 100%) !important;
+  border-color: #4A2E8A !important;
+  color: #C4B5FD !important;
+}
+
 @media(max-width:600px){
   .bh-card-header,.bh-col-header{padding:13px 14px 11px}
   .bh-item-row,.bh-sport-row{padding:11px 14px}
   .bh-sub-row{padding:6px 14px 6px 24px}
   .bh-item-label,.bh-sport-label{font-size:0.82rem}
   .bh-item-price,.bh-sport-price{font-size:0.88rem}
-  .bh-sub-label{font-size:0.72rem}}
+  .bh-sub-label{font-size:0.72rem}
+}
 </style>"""
 
 

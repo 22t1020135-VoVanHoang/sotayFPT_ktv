@@ -7,7 +7,8 @@ import os
 import streamlit as st
 import openpyxl
 
-# ── Màu theme mặc định của Office ───
+# ── Màu theme mặc định của Office ────────────────────────────────────────────
+
 _OFFICE_THEME: dict[int, tuple[int, int, int]] = {
     0: (0, 0, 0),       1: (255, 255, 255),
     2: (68, 84, 106),   3: (231, 230, 230),
@@ -18,8 +19,9 @@ _OFFICE_THEME: dict[int, tuple[int, int, int]] = {
 _TRANSPARENT = frozenset({"00000000", "FFFFFFFF", "00FFFFFF"})
 _MONEY_UNITS = ("K", "đ", "VND", "%")
 
-# ── Style strings dùng chung ───
-_S_WRAP  = (
+# ── Style strings dùng chung ──────────────────────────────────────────────────
+
+_S_WRAP = (
     "overflow-x:auto;-webkit-overflow-scrolling:touch;"
     "border-radius:12px;border:1px solid #E4E9F0;"
     "box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:8px;"
@@ -39,7 +41,7 @@ _S_HEAD  = (
 _S_MONEY = "color:#c04800;font-weight:700;"
 
 
-# ── Helpers màu sắc ───
+# ── Helpers màu sắc ───────────────────────────────────────────────────────────
 
 def _hex_to_rgb(hex_str: str) -> tuple[int, int, int] | None:
     if not hex_str or hex_str in _TRANSPARENT:
@@ -119,7 +121,7 @@ def _cell_extra_css(cell) -> str:
     return "".join(parts)
 
 
-# ── Render worksheet ───
+# ── Render worksheet ──────────────────────────────────────────────────────────
 
 def _render_ws_html(ws) -> str:
     max_row, max_col = ws.max_row, ws.max_column
@@ -164,13 +166,14 @@ def _render_ws_html(ws) -> str:
         extra  = _cell_extra_css(cell)
 
         if is_header:
-            # Header: chỉ override bg/color từ Excel, giữ base style
-            bg_override = ""
-            if "background-color" in extra:
-                bg_override = extra
+            bg_override = extra if "background-color" in extra else ""
             return f'<th{attrs} style="{_S_HEAD}{bg_override}">{text}</th>'
 
-        is_money = text and "background-color" not in extra and any(u in text for u in _MONEY_UNITS) and any(ch.isdigit() for ch in text)
+        is_money = (
+            text and "background-color" not in extra
+            and any(u in text for u in _MONEY_UNITS)
+            and any(ch.isdigit() for ch in text)
+        )
         money_css = _S_MONEY if is_money else ""
         return f'<td{attrs} style="{_S_CELL}{extra}{money_css}">{text}</td>'
 
@@ -193,6 +196,8 @@ def _render_ws_html(ws) -> str:
         f"</table></div>"
     )
 
+
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=60)
 def render_excel_file(file_path: str) -> list[tuple[str, str]]:

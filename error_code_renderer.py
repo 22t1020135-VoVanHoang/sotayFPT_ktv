@@ -10,7 +10,8 @@ import html as _html
 import streamlit as st
 import openpyxl
 
-# ── Cấu hình màu sắc badge theo nền tảng ───
+# ── Cấu hình badge theo nền tảng ─────────────────────────────────────────────
+
 _SHEET_CONFIG: dict[str, dict] = {
     "SmartTV LG,Sony HTML,SamSung": {
         "icon": "📺", "label": "SmartTV LG,Sony HTML,SamSung",
@@ -83,16 +84,15 @@ li.ec-sub{font-size:0.78rem;color:#7A8899;margin-left:12px;list-style-type:circl
 </style>"""
 
 
-# ── Parse dữ liệu ───
+# ── Parse dữ liệu ─────────────────────────────────────────────────────────────
 
 def _clean(val) -> str:
     return str(val).strip() if val is not None else ""
 
 
 def _parse_sheet(ws, sheet_name: str) -> list[dict]:
-    """Trả về list[dict] với keys: platform, ma_loi, mo_ta, nguyen_nhan, cach_xu_ly."""
+    """Parse một sheet Excel → list[dict] với keys: platform, ma_loi, mo_ta, nguyen_nhan, cach_xu_ly."""
 
-    # Sheet đặc biệt: Box 650 (không có cột chuẩn)
     if sheet_name == "Lỗi box 650 hiện hữu":
         rows = []
         for r in range(2, ws.max_row + 1):
@@ -108,7 +108,6 @@ def _parse_sheet(ws, sheet_name: str) -> list[dict]:
             })
         return rows
 
-    # Sheet: Không hiện mã lỗi_Dịch vụ
     if sheet_name == "Không hiện mã lỗi_Dịch vụ":
         return [
             {
@@ -122,28 +121,23 @@ def _parse_sheet(ws, sheet_name: str) -> list[dict]:
             if _clean(ws.cell(r, 2).value) or _clean(ws.cell(r, 3).value)
         ]
 
-    # Sheet iOS: col 3 = Nguyên nhân, col 4 = Ghi chú thêm, col 5 = Cách xử lý
     if sheet_name == "iOS":
         rows = []
         for r in range(2, ws.max_row + 1):
             ma_loi = _clean(ws.cell(r, 2).value)
             if not ma_loi:
                 continue
-            nn, ghi_chu, xu_ly = (
-                _clean(ws.cell(r, 3).value),
-                _clean(ws.cell(r, 4).value),
-                _clean(ws.cell(r, 5).value),
-            )
+            nn      = _clean(ws.cell(r, 3).value)
+            ghi_chu = _clean(ws.cell(r, 4).value)
             rows.append({
                 "platform": _clean(ws.cell(r, 1).value) or "iOS",
                 "ma_loi": ma_loi,
                 "mo_ta": nn[:80],
                 "nguyen_nhan": "\n".join(filter(None, [nn, ghi_chu])),
-                "cach_xu_ly": xu_ly,
+                "cach_xu_ly": _clean(ws.cell(r, 5).value),
             })
         return rows
 
-    # Sheet Website: col 4 = chi tiết
     if sheet_name == "Website":
         return [
             {
@@ -175,7 +169,7 @@ def _parse_sheet(ws, sheet_name: str) -> list[dict]:
     return rows
 
 
-# ── Format nội dung → HTML ──
+# ── Format nội dung → HTML ────────────────────────────────────────────────────
 
 _STEP_RE   = re.compile(r"^(B\d+|Bước\s*\d+)\s*[:.]?\s*", re.IGNORECASE)
 _BULLET_RE = re.compile(r"^[-•]\s+")
@@ -183,12 +177,13 @@ _SUB_RE    = re.compile(r"^\+\s+")
 
 
 def _format_detail_html(text: str) -> str:
-    """Chuyển multi-line text → HTML danh sách có định dạng."""
+    """Chuyển multi-line text → HTML danh sách có định dạng (ol/ul/p)."""
     if not text:
         return ""
 
     parts: list[str] = []
-    list_type: str | None = None  # "ol" hoặc "ul"
+    list_type: str | None = None
+    esc = _html.escape
 
     def _close_list():
         nonlocal list_type
@@ -203,13 +198,10 @@ def _format_detail_html(text: str) -> str:
             parts.append(f"<{tag} class='ec-{'steps' if tag == 'ol' else 'bullets'}'>")
             list_type = tag
 
-    esc = _html.escape
-
     for raw in text.split("\n"):
         line = raw.strip()
         if not line:
             continue
-
         if _STEP_RE.match(line):
             _ensure_list("ol")
             parts.append(f"<li>{esc(_STEP_RE.sub('', line))}</li>")
@@ -226,10 +218,10 @@ def _format_detail_html(text: str) -> str:
     return "\n".join(parts)
 
 
-# ── Render card ──
+# ── Render card ───────────────────────────────────────────────────────────────
 
 def _render_card(row: dict, cfg: dict, card_key: str, is_open: bool) -> bool:
-    """Render 1 accordion card. Trả về True nếu user vừa click."""
+    """Render 1 accordion card. Trả về True nếu user vừa click toggle."""
     esc = _html.escape
     code_str = esc(str(row["ma_loi"])) if row["ma_loi"] else "—"
 
@@ -276,11 +268,11 @@ def _render_card(row: dict, cfg: dict, card_key: str, is_open: bool) -> bool:
     )
 
 
-# ── Entry point ───
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=120)
 def _load_error_data(xlsx_path: str) -> dict[str, list[dict]]:
-    """Load & parse tất cả sheet. Cache 2 phút."""
+    """Load và parse tất cả sheet trong file Excel. Cache 2 phút."""
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     result = {name: _parse_sheet(wb[name], name) for name in wb.sheetnames}
     wb.close()
@@ -298,7 +290,6 @@ def render_error_code_accordion(xlsx_path: str, session_prefix: str = "ec") -> N
     all_data    = _load_error_data(xlsx_path)
     sheet_names = list(all_data.keys())
 
-    # ── Session state keys ──
     sk_sheet  = f"{session_prefix}_sheet"
     sk_open   = f"{session_prefix}_open_card"
     sk_search = f"{session_prefix}_search"
@@ -309,7 +300,7 @@ def render_error_code_accordion(xlsx_path: str, session_prefix: str = "ec") -> N
 
     active_sheet = st.session_state[sk_sheet]
 
-    # ── Tabs chọn sheet ──
+    # Tabs chọn sheet
     st.markdown(
         "<p style='color:#8896A5;font-size:0.78rem;margin:10px 0 6px;"
         "font-family:Sora,sans-serif;'>📋 Chọn nền tảng / loại thiết bị:</p>",
@@ -331,7 +322,7 @@ def render_error_code_accordion(xlsx_path: str, session_prefix: str = "ec") -> N
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # ── Tìm kiếm ──
+    # Tìm kiếm trong sheet
     search_kw = st.text_input(
         "", placeholder="🔍  Tìm mã lỗi hoặc từ khóa trong sheet này...",
         label_visibility="collapsed", key=sk_search,
@@ -339,7 +330,7 @@ def render_error_code_accordion(xlsx_path: str, session_prefix: str = "ec") -> N
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-    # ── Lọc dữ liệu ──
+    # Lọc và render
     rows = all_data[active_sheet]
     if search_kw:
         rows = [
@@ -363,7 +354,6 @@ def render_error_code_accordion(xlsx_path: str, session_prefix: str = "ec") -> N
         )
         return
 
-    # ── Render cards ──
     open_key = st.session_state[sk_open]
     for idx, row in enumerate(rows):
         card_key = f"{session_prefix}_card_{active_sheet}_{idx}"
@@ -372,7 +362,6 @@ def render_error_code_accordion(xlsx_path: str, session_prefix: str = "ec") -> N
             st.session_state[sk_open] = None if is_open else card_key
             st.rerun()
 
-    # ── Download ──
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
     with open(xlsx_path, "rb") as f:
         st.download_button(

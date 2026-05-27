@@ -49,7 +49,7 @@ _TAN_BINH_ITEMS = [
     },
 ]
 
-# Metadata tĩnh cho file PDF trong cau_hinh/
+# Metadata tĩnh cho file PDF trong cau_hinh/ — key là tên file chính xác
 _PDF_META: dict[str, dict] = {
     "internethubax3000s.pdf": {
         "title": "Hướng dẫn sử dụng Internet Hub AX3000S",
@@ -64,32 +64,34 @@ _PDF_META: dict[str, dict] = {
         "search_tags": ["skyworth", "wifi6", "wifi 6", "ax3000s", "cấu hình thiết bị", "ont"],
     },
 }
-_PDF_META_FALLBACK = {
+# Metadata cho file đào tạo (tên file có ký tự Unicode URL-encoded)
+_PDF_META_TRAINING = {
     "title": "Tài liệu đào tạo triển khai Mesh Wi-Fi 6 GPON Internet Hub AX3000S",
     "desc":  "Tài liệu nội bộ FPT Digital — hướng dẫn cấu hình và thực hành lab (v1.0)",
     "color": "#F26F21", "bg": "#FFF5EF", "border": "rgba(242,111,33,0.2)",
     "search_tags": ["đào tạo", "mesh", "wifi 6", "gpon", "ax3000s", "cấu hình thiết bị", "lab"],
 }
-_PDF_META_DEFAULT_FACTORY = lambda fname: {
-    "title": os.path.splitext(fname)[0],
-    "desc":  "Tài liệu kỹ thuật",
-    "color": "#5A6070", "bg": "#F0F3F8", "border": "rgba(90,96,112,0.15)",
-    "search_tags": ["cấu hình thiết bị"],
-}
 
 
-# ── Helpers ────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_pdf_meta(fname: str) -> dict:
+    """Trả về metadata cho file PDF. Fallback theo tên file nếu không có trong _PDF_META."""
     if fname in _PDF_META:
         return _PDF_META[fname]
     fname_lower = fname.lower()
     if "đào" in fname_lower or "#u0111" in fname_lower or "T#U" in fname:
-        return _PDF_META_FALLBACK
-    return _PDF_META_DEFAULT_FACTORY(fname)
+        return _PDF_META_TRAINING
+    return {
+        "title": os.path.splitext(fname)[0],
+        "desc":  "Tài liệu kỹ thuật",
+        "color": "#5A6070", "bg": "#F0F3F8", "border": "rgba(90,96,112,0.15)",
+        "search_tags": ["cấu hình thiết bị"],
+    }
 
 
 def _item_matches(item: dict, kw: str) -> bool:
+    """Kiểm tra item có khớp với keyword không (tìm trong tags, title, desc)."""
     if not kw:
         return True
     return (
@@ -100,23 +102,25 @@ def _item_matches(item: dict, kw: str) -> bool:
 
 
 def _list_cau_hinh_files() -> list[tuple[str, str, str]]:
+    """Trả về list[(fname, ext, fpath)] cho tất cả file hỗ trợ trong _CAU_HINH_DIR."""
     if not os.path.isdir(_CAU_HINH_DIR):
         return []
-    return [
-        (fname, ext := os.path.splitext(fname)[1].lower(), os.path.join(_CAU_HINH_DIR, fname))
-        for fname in sorted(os.listdir(_CAU_HINH_DIR))
-        if (ext := os.path.splitext(fname)[1].lower()) in _SUPPORTED_EXT
-    ]
+    result = []
+    for fname in sorted(os.listdir(_CAU_HINH_DIR)):
+        ext = os.path.splitext(fname)[1].lower()
+        if ext in _SUPPORTED_EXT:
+            result.append((fname, ext, os.path.join(_CAU_HINH_DIR, fname)))
+    return result
 
 
 def count_cau_hinh_files() -> int:
     return len(_list_cau_hinh_files())
 
 
-# ── Render: Tài liệu tân binh ────
+# ── Render: Tài liệu tân binh ─────────────────────────────────────────────────
 
 def _render_tan_binh(keyword: str = "") -> None:
-    kw       = keyword.strip().lower()
+    kw = keyword.strip().lower()
     filtered = [item for item in _TAN_BINH_ITEMS if _item_matches(item, kw)]
 
     if not filtered:
@@ -158,10 +162,10 @@ def _render_tan_binh(keyword: str = "") -> None:
     )
 
 
-# ── Render: Cấu hình thiết bị ────
+# ── Render: Cấu hình thiết bị ─────────────────────────────────────────────────
 
 def _render_cau_hinh(keyword: str = "") -> None:
-    kw        = keyword.strip().lower()
+    kw = keyword.strip().lower()
     all_files = _list_cau_hinh_files()
 
     if not all_files:
@@ -216,7 +220,7 @@ def _render_cau_hinh(keyword: str = "") -> None:
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 
-# ── Entry point ────
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def render_tai_lieu(keyword: str = "") -> None:
     total = len(_TAN_BINH_ITEMS) + count_cau_hinh_files()
