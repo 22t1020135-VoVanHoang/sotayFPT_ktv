@@ -235,24 +235,100 @@ def _render_4xl(keyword: str = "") -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Hiển thị ảnh infographic nếu có ──
+        # ── Hiển thị ảnh dạng swipe carousel (vuốt tay trái/phải) ──
         if item["images"]:
             img_paths = [
-                (fname, os.path.join(_4XL_DIR, fname))
+                os.path.join(_4XL_DIR, fname)
                 for fname in item["images"]
                 if os.path.isfile(os.path.join(_4XL_DIR, fname))
             ]
             if img_paths:
-                cols = st.columns(len(img_paths))
-                for col, (fname, fpath) in zip(cols, img_paths):
-                    uri = _img_b64(fpath)
-                    if uri:
-                        with col:
-                            st.markdown(
-                                f'<img src="{uri}" style="width:100%;border-radius:10px;'
-                                f'border:1px solid {item["border"]};margin-bottom:6px;" />',
-                                unsafe_allow_html=True,
-                            )
+                # Encode tất cả ảnh sang base64
+                imgs_b64 = [_img_b64(p) for p in img_paths]
+                imgs_b64 = [u for u in imgs_b64 if u]  # bỏ ảnh lỗi
+
+                if imgs_b64:
+                    total = len(imgs_b64)
+                    # Build danh sách src JS
+                    imgs_js = "[" + ",".join(f'"{u}"' for u in imgs_b64) + "]"
+                    border_color = item["border"]
+
+                    html = f"""
+<div id="carousel_{item['num']}" style="
+    position:relative;overflow:hidden;width:100%;
+    border-radius:12px;border:1px solid {border_color};
+    touch-action:pan-y;user-select:none;margin-bottom:8px;">
+
+  <div id="track_{item['num']}" style="
+      display:flex;transition:transform 0.3s ease;width:{total * 100}%;">
+    {''.join(
+        f'<div style="width:{100 / total}%;flex-shrink:0;">'
+        f'<img src="{u}" style="width:100%;display:block;border-radius:12px;" /></div>'
+        for u in imgs_b64
+    )}
+  </div>
+
+  <!-- Chấm chỉ vị trí -->
+  <div id="dots_{item['num']}" style="
+      position:absolute;bottom:8px;left:0;right:0;
+      display:flex;justify-content:center;gap:6px;">
+    {''.join(
+        f'<span id="dot_{item["num"]}_{i}" style="'
+        f'width:7px;height:7px;border-radius:50%;background:{"rgba(255,255,255,0.95)" if i==0 else "rgba(255,255,255,0.45)"};'
+        f'display:inline-block;transition:background 0.2s;"></span>'
+        for i in range(total)
+    )}
+  </div>
+</div>
+
+<script>
+(function(){{
+  var num   = "{item['num']}";
+  var total = {total};
+  var cur   = 0;
+  var track = document.getElementById("track_" + num);
+  var startX, isDragging = false, diffX = 0;
+
+  function goTo(i) {{
+    if (i < 0) i = 0;
+    if (i >= total) i = total - 1;
+    cur = i;
+    track.style.transition = "transform 0.3s ease";
+    track.style.transform  = "translateX(-" + (cur * 100 / total) + "%)";
+    for (var j = 0; j < total; j++) {{
+      var dot = document.getElementById("dot_" + num + "_" + j);
+      if (dot) dot.style.background = j === cur
+        ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)";
+    }}
+  }}
+
+  track.addEventListener("touchstart", function(e) {{
+    startX = e.touches[0].clientX;
+    isDragging = true;
+    diffX = 0;
+    track.style.transition = "none";
+  }}, {{passive:true}});
+
+  track.addEventListener("touchmove", function(e) {{
+    if (!isDragging) return;
+    diffX = e.touches[0].clientX - startX;
+    var base = -cur * 100 / total;
+    track.style.transform = "translateX(calc(" + base + "% + " + diffX + "px))";
+  }}, {{passive:true}});
+
+  track.addEventListener("touchend", function() {{
+    isDragging = false;
+    if (diffX < -50)      goTo(cur + 1);
+    else if (diffX > 50)  goTo(cur - 1);
+    else                  goTo(cur);
+  }});
+}})();
+</script>
+"""
+                    import streamlit.components.v1 as components
+                    # Tính chiều cao tự động theo tỉ lệ ảnh ~4:3 portrait
+                    height_px = 520 if total <= 2 else 500
+                    components.html(html, height=height_px, scrolling=False)
 
         # ── Nút tải PDF ──
         if os.path.isfile(pdf_path):
