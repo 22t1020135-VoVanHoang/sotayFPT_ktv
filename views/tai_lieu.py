@@ -1,8 +1,9 @@
 """
 views/tai_lieu.py
-Render tab "Tài liệu": subfolder Tân binh và Cấu hình thiết bị.
+Render tab "Tài liệu": subfolder Chương Trình 4XL, Tân binh và Cấu hình thiết bị.
 """
 
+import base64
 import os
 import streamlit as st
 
@@ -11,6 +12,7 @@ from views.quy_trinh import render_section_header
 
 _BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CAU_HINH_DIR = os.path.join(_BASE_DIR, "tailieu", "cau_hinh")
+_4XL_DIR      = os.path.join(_BASE_DIR, "tailieu", "4xl")
 
 _SUPPORTED_EXT = frozenset({".xlsx", ".xls", ".pptx", ".ppt", ".pdf", ".docx", ".doc"})
 _MIME_MAP = {
@@ -21,6 +23,7 @@ _MIME_MAP = {
     ".doc":  "application/msword",
 }
 _SUBFOLDERS = {
+    "💡  Chương Trình 4XL":  "Chương Trình 4XL",
     "🎓  Tài liệu tân binh": "Tài liệu tân binh",
     "⚙️  Cấu hình thiết bị": "Cấu hình thiết bị",
 }
@@ -115,6 +118,156 @@ def _list_cau_hinh_files() -> list[tuple[str, str, str]]:
 
 def count_cau_hinh_files() -> int:
     return len(_list_cau_hinh_files())
+
+
+# ── Helpers: ảnh base64 ───────────────────────────────────────────────────────
+
+def _img_b64(fpath: str) -> str:
+    """Đọc file ảnh, trả về chuỗi base64 data-URI. Trả về chuỗi rỗng nếu lỗi."""
+    try:
+        ext = os.path.splitext(fpath)[1].lower().lstrip(".")
+        mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
+        with open(fpath, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+        return f"data:{mime};base64,{data}"
+    except Exception:
+        return ""
+
+
+# ── Render: Chương Trình 4XL ──────────────────────────────────────────────────
+
+_4XL_ITEMS = [
+    {
+        "num": "1",
+        "title": "Tác Phong Giao Tiếp 4XL",
+        "desc": "Hướng dẫn tác phong, giao tiếp nâng cao dành cho KTV/NVKD — Chương trình 4XL FPT Telecom",
+        "icon": "🌟",
+        "color": "#C8530D",
+        "bg": "#FFF5EF",
+        "border": "rgba(242,111,33,0.25)",
+        "pdf_file": "tác phong giao tiếp 4XL.pdf",
+        "pdf_label": "Tác phong giao tiếp 4XL",
+        "images": [],
+        "search_tags": ["4xl", "tác phong", "giao tiếp", "chương trình", "ktv"],
+    },
+    {
+        "num": "2",
+        "title": "KTV Giao Tiếp Qua Điện Thoại Với KHG",
+        "desc": "Mẫu câu giao tiếp với khách hàng qua điện thoại: xin đến trễ, xin hẹn lại",
+        "icon": "📞",
+        "color": "#005DA3",
+        "bg": "#EFF6FF",
+        "border": "rgba(0,93,163,0.2)",
+        "pdf_file": "TỔNG HỢP MẪU GIAO TIẾP QUA ĐIỆN THOẠI VỚI KHÁCH HÀNG.pdf",
+        "pdf_label": "Tổng hợp mẫu giao tiếp qua điện thoại",
+        "images": ["dienthoai_xindentze.jpg", "dienthoai_xinhenlai.jpg"],
+        "search_tags": ["4xl", "điện thoại", "giao tiếp", "mẫu câu", "hẹn lại", "đến trễ", "ktv"],
+    },
+    {
+        "num": "3",
+        "title": "Giao Tiếp Trực Tiếp Với KHG Khi KTV Triển Khai Mới",
+        "desc": "Mẫu câu giao tiếp tình huống triển khai, lắp đặt mới tại nhà khách hàng",
+        "icon": "🏠",
+        "color": "#1A7A42",
+        "bg": "#EFFAF4",
+        "border": "rgba(26,122,66,0.2)",
+        "pdf_file": "Mẫu giao tiếp khi triển khai mới.pdf",
+        "pdf_label": "Mẫu giao tiếp khi triển khai mới",
+        "images": [],
+        "search_tags": ["4xl", "triển khai", "lắp đặt", "giao tiếp", "tại nhà", "ktv"],
+    },
+    {
+        "num": "4",
+        "title": "Tin Nhắn KTV Giao Tiếp Với KHG",
+        "desc": "Bộ mẫu tin nhắn SMS KTV gửi khách hàng: thông báo lịch hẹn, trễ lịch, dời lịch, đến nơi không liên hệ được",
+        "icon": "💬",
+        "color": "#6D28D9",
+        "bg": "#F3EEFF",
+        "border": "rgba(109,40,217,0.2)",
+        "pdf_file": "Tổng hợp tất cả mẫu tin nhắn KTV gửi KHG.pdf",
+        "pdf_label": "Tổng hợp tất cả mẫu tin nhắn KTV gửi KHG",
+        "images": ["sms_lichhen.jpg", "sms_trelihen.jpg", "sms_doilihen.jpg", "sms_dennoikhonglienhe.jpg"],
+        "search_tags": ["4xl", "tin nhắn", "sms", "lịch hẹn", "trễ lịch", "dời lịch", "ktv", "khách hàng"],
+    },
+]
+
+
+def _render_4xl(keyword: str = "") -> None:
+    kw = keyword.strip().lower()
+    filtered = [
+        item for item in _4XL_ITEMS
+        if not kw
+        or any(kw in tag for tag in item["search_tags"])
+        or kw in item["title"].lower()
+        or kw in item["desc"].lower()
+    ]
+
+    if not filtered:
+        st.markdown(
+            '<div class="empty-state">😕 Không tìm thấy nội dung 4XL khớp với từ khóa.<br>'
+            '<small style="color:#B0BBC8;">Thử: <b>tác phong</b>, <b>điện thoại</b>, <b>tin nhắn</b>, <b>triển khai</b></small></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    st.markdown(
+        "<p style='color:#8896A5;font-size:0.82rem;margin-bottom:16px;"
+        "font-family:Sora,sans-serif;'>"
+        "💡 Chương trình 4XL — Hành trình chinh phục triệu trái tim khách hàng của FPT Telecom.</p>",
+        unsafe_allow_html=True,
+    )
+
+    for item in filtered:
+        pdf_path = os.path.join(_4XL_DIR, item["pdf_file"])
+
+        # ── Card tiêu đề ──
+        st.markdown(
+            f'<div class="doc-card" style="border-color:{item["border"]};border-left:3px solid {item["color"]};">'
+            f'  <div class="doc-card-icon" style="background:{item["bg"]};font-size:1.3rem;">{item["icon"]}</div>'
+            f'  <div style="flex:1;">'
+            f'    <div class="doc-card-title" style="color:{item["color"]};">'
+            f'      <span style="background:{item["bg"]};color:{item["color"]};border-radius:4px;'
+            f'      padding:1px 7px;font-size:0.72rem;font-weight:800;margin-right:6px;">{item["num"]}</span>'
+            f'      {highlight_text(item["title"], keyword)}</div>'
+            f'    <div class="doc-card-desc">{highlight_text(item["desc"], keyword)}</div>'
+            f'  </div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── Hiển thị ảnh infographic nếu có ──
+        if item["images"]:
+            img_paths = [
+                (fname, os.path.join(_4XL_DIR, fname))
+                for fname in item["images"]
+                if os.path.isfile(os.path.join(_4XL_DIR, fname))
+            ]
+            if img_paths:
+                cols = st.columns(len(img_paths))
+                for col, (fname, fpath) in zip(cols, img_paths):
+                    uri = _img_b64(fpath)
+                    if uri:
+                        with col:
+                            st.markdown(
+                                f'<img src="{uri}" style="width:100%;border-radius:10px;'
+                                f'border:1px solid {item["border"]};margin-bottom:6px;" />',
+                                unsafe_allow_html=True,
+                            )
+
+        # ── Nút tải PDF ──
+        if os.path.isfile(pdf_path):
+            with open(pdf_path, "rb") as f:
+                st.download_button(
+                    label=f"📥  Tải về — {item['pdf_label']}.pdf",
+                    data=f,
+                    file_name=f"{item['pdf_label']}.pdf",
+                    mime="application/pdf",
+                    key=f"dl_4xl_{item['num']}",
+                )
+        else:
+            st.warning(f"⚠️ Chưa tìm thấy file: {item['pdf_file']}. Đặt vào thư mục tailieu/4xl/")
+
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
 
 # ── Render: Tài liệu tân binh ─────────────────────────────────────────────────
@@ -223,11 +376,11 @@ def _render_cau_hinh(keyword: str = "") -> None:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def render_tai_lieu(keyword: str = "") -> None:
-    total = len(_TAN_BINH_ITEMS) + count_cau_hinh_files()
+    total = len(_4XL_ITEMS) + len(_TAN_BINH_ITEMS) + count_cau_hinh_files()
     render_section_header("📁", "Tài liệu", total)
 
-    _, sf1, sf2, _ = st.columns([1, 1, 1, 1])
-    for col, (label, sf_key) in zip([sf1, sf2], _SUBFOLDERS.items()):
+    sf1, sf2, sf3 = st.columns(3)
+    for col, (label, sf_key) in zip([sf1, sf2, sf3], _SUBFOLDERS.items()):
         with col:
             if st.button(
                 label, key=f"sf_{sf_key}",
@@ -240,7 +393,9 @@ def render_tai_lieu(keyword: str = "") -> None:
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
     active_sf = st.session_state.active_subfolder
-    if active_sf == "Tài liệu tân binh":
+    if active_sf == "Chương Trình 4XL":
+        _render_4xl(keyword)
+    elif active_sf == "Tài liệu tân binh":
         _render_tan_binh(keyword)
     elif active_sf == "Cấu hình thiết bị":
         _render_cau_hinh(keyword)

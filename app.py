@@ -45,10 +45,16 @@ _TAI_LIEU_TAGS = frozenset({
     "tài liệu tân binh", "kỹ năng", "chuyên môn", "chính sách chế độ",
     "cấu hình thiết bị", "internet hub ax3000s", "skyworth wifi6",
     "hướng dẫn sử dụng", "đào tạo", "mesh wifi",
+    "4xl", "tác phong", "tin nhắn", "sms", "giao tiếp", "chương trình 4xl",
+    "ktv giao tiếp", "mẫu câu", "hẹn lại", "đến trễ", "triển khai mới",
 })
 _CAU_HINH_KW = frozenset({
     "cấu hình", "thiết bị", "ax3000s", "skyworth", "wifi6",
     "internet hub", "đào tạo", "mesh",
+})
+_4XL_KW = frozenset({
+    "4xl", "tác phong", "tin nhắn", "sms", "mẫu câu",
+    "hẹn lại", "đến trễ", "giao tiếp", "triển khai mới",
 })
 
 _RENDER_MAP = {
@@ -196,7 +202,7 @@ st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 # ── Session state mặc định ───────────────────────────────────────────────────
 
 st.session_state.setdefault("active_folder",    "Quy trình")
-st.session_state.setdefault("active_subfolder", "Tài liệu tân binh")
+st.session_state.setdefault("active_subfolder", "Chương Trình 4XL")
 st.session_state.setdefault("_last_kw",         "")
 
 
@@ -245,11 +251,12 @@ if kw and kw != st.session_state._last_kw:
     if hit_counts[best] > 0:
         st.session_state.active_folder = best
         if best == "Tài liệu":
-            st.session_state.active_subfolder = (
-                "Cấu hình thiết bị"
-                if any(k in kw_lower for k in _CAU_HINH_KW)
-                else "Tài liệu tân binh"
-            )
+            if any(k in kw_lower for k in _4XL_KW):
+                st.session_state.active_subfolder = "Chương Trình 4XL"
+            elif any(k in kw_lower for k in _CAU_HINH_KW):
+                st.session_state.active_subfolder = "Cấu hình thiết bị"
+            else:
+                st.session_state.active_subfolder = "Tài liệu tân binh"
     st.session_state._last_kw = kw
 
 if not kw:
