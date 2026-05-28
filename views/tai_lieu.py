@@ -235,44 +235,24 @@ def _render_4xl(keyword: str = "") -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Hiển thị ảnh dạng carousel (1 ảnh, bấm nút chuyển) ──
+        # ── Hiển thị ảnh infographic nếu có ──
         if item["images"]:
             img_paths = [
-                os.path.join(_4XL_DIR, fname)
+                (fname, os.path.join(_4XL_DIR, fname))
                 for fname in item["images"]
                 if os.path.isfile(os.path.join(_4XL_DIR, fname))
             ]
             if img_paths:
-                total = len(img_paths)
-                key_idx = f"carousel_{item['num']}"
-                st.session_state.setdefault(key_idx, 0)
-                idx = st.session_state[key_idx]
-
-                uri = _img_b64(img_paths[idx])
-                if uri:
-                    st.markdown(
-                        f'<img src="{uri}" style="width:100%;border-radius:10px;'
-                        f'border:1px solid {item["border"]};margin-bottom:6px;" />',
-                        unsafe_allow_html=True,
-                    )
-
-                # Nút prev / chỉ số / nút next
-                c_prev, c_mid, c_next = st.columns([1, 2, 1])
-                with c_prev:
-                    if st.button("◀", key=f"prev_{item['num']}", disabled=(idx == 0)):
-                        st.session_state[key_idx] = idx - 1
-                        st.rerun()
-                with c_mid:
-                    st.markdown(
-                        f"<div style='text-align:center;font-size:0.8rem;"
-                        f"color:#8896A5;padding-top:6px;font-family:Sora,sans-serif;'>"
-                        f"Ảnh {idx + 1} / {total}</div>",
-                        unsafe_allow_html=True,
-                    )
-                with c_next:
-                    if st.button("▶", key=f"next_{item['num']}", disabled=(idx == total - 1)):
-                        st.session_state[key_idx] = idx + 1
-                        st.rerun()
+                cols = st.columns(len(img_paths))
+                for col, (fname, fpath) in zip(cols, img_paths):
+                    uri = _img_b64(fpath)
+                    if uri:
+                        with col:
+                            st.markdown(
+                                f'<img src="{uri}" style="width:100%;border-radius:10px;'
+                                f'border:1px solid {item["border"]};margin-bottom:6px;" />',
+                                unsafe_allow_html=True,
+                            )
 
         # ── Nút tải PDF ──
         if os.path.isfile(pdf_path):
