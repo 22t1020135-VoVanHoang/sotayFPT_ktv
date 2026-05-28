@@ -235,24 +235,179 @@ def _render_4xl(keyword: str = "") -> None:
             unsafe_allow_html=True,
         )
 
-        # ── Hiển thị ảnh infographic nếu có ──
+        # ── Hiển thị ảnh dạng swipe carousel (vuốt tay trái/phải) ──
         if item["images"]:
             img_paths = [
-                (fname, os.path.join(_4XL_DIR, fname))
+                os.path.join(_4XL_DIR, fname)
                 for fname in item["images"]
                 if os.path.isfile(os.path.join(_4XL_DIR, fname))
             ]
             if img_paths:
-                cols = st.columns(len(img_paths))
-                for col, (fname, fpath) in zip(cols, img_paths):
-                    uri = _img_b64(fpath)
-                    if uri:
-                        with col:
-                            st.markdown(
-                                f'<img src="{uri}" style="width:100%;border-radius:10px;'
-                                f'border:1px solid {item["border"]};margin-bottom:6px;" />',
-                                unsafe_allow_html=True,
-                            )
+                # Encode tất cả ảnh sang base64
+                imgs_b64 = [_img_b64(p) for p in img_paths]
+                imgs_b64 = [u for u in imgs_b64 if u]  # bỏ ảnh lỗi
+
+                if imgs_b64:
+                    total = len(imgs_b64)
+                    # Build danh sách src JS
+                    imgs_js = "[" + ",".join(f'"{u}"' for u in imgs_b64) + "]"
+                    border_color = item["border"]
+
+                    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<style>
+  html, body {{
+    margin: 0; padding: 0;
+    background: transparent;
+    overflow: hidden;
+  }}
+  #carousel_{item['num']} {{
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid {border_color};
+    touch-action: pan-y;
+    user-select: none;
+    margin-bottom: 0;
+  }}
+  #track_{item['num']} {{
+    display: flex;
+    transition: transform 0.3s ease;
+    width: {total * 100}%;
+  }}
+  .slide-item {{
+    width: {100 / total}%;
+    flex-shrink: 0;
+  }}
+  .slide-item img {{
+    width: 100%;
+    display: block;
+    border-radius: 12px;
+    height: auto;
+  }}
+  #dots_{item['num']} {{
+    position: absolute;
+    bottom: 8px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }}
+</style>
+</head>
+<body>
+<div id="carousel_{item['num']}">
+  <div id="track_{item['num']}">
+    {''.join(
+        f'<div class="slide-item"><img src="{u}" id="img_{item["num"]}_{i}" /></div>'
+        for i, u in enumerate(imgs_b64)
+    )}
+  </div>
+  <div id="dots_{item['num']}">
+    {''.join(
+        f'<span id="dot_{item["num"]}_{i}" style="'
+        f'width:7px;height:7px;border-radius:50%;background:{"rgba(255,255,255,0.95)" if i==0 else "rgba(255,255,255,0.45)"};'
+        f'display:inline-block;transition:background 0.2s;"></span>'
+        for i in range(total)
+    )}
+  </div>
+</div>
+
+<script>
+(function(){{
+  var num   = "{item['num']}";
+  var total = {total};
+  var cur   = 0;
+  var track = document.getElementById("track_" + num);
+  var carousel = document.getElementById("carousel_" + num);
+  var startX, isDragging = false, diffX = 0;
+
+  // Tự động resize iframe theo chiều cao ảnh hiện tại
+  function updateHeight() {{
+    var img = document.getElementById("img_" + num + "_" + cur);
+    if (img && img.complete && img.naturalHeight > 0) {{
+      var h = carousel.offsetHeight;
+      if (h > 0) {{
+        // Gửi chiều cao lên parent Streamlit
+        window.parent.postMessage({{
+          type: "streamlit:setFrameHeight",
+          height: h + 4
+        }}, "*");
+      }}
+    }}
+  }}
+
+  function goTo(i) {{
+    if (i < 0) i = 0;
+    if (i >= total) i = total - 1;
+    cur = i;
+    track.style.transition = "transform 0.3s ease";
+    track.style.transform  = "translateX(-" + (cur * 100 / total) + "%)";
+    for (var j = 0; j < total; j++) {{
+      var dot = document.getElementById("dot_" + num + "_" + j);
+      if (dot) dot.style.background = j === cur
+        ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)";
+    }}
+    setTimeout(updateHeight, 350);
+  }}
+
+  // Chờ tất cả ảnh load xong rồi set chiều cao
+  var imgs = document.querySelectorAll("#track_" + num + " img");
+  var loaded = 0;
+  function onImgLoad() {{
+    loaded++;
+    if (loaded === imgs.length) {{
+      updateHeight();
+    }}
+  }}
+  imgs.forEach(function(img) {{
+    if (img.complete) {{ onImgLoad(); }}
+    else {{ img.addEventListener("load", onImgLoad); }}
+  }});
+
+  // Fallback: update sau 1s và 2s phòng trường hợp base64 chậm
+  setTimeout(updateHeight, 800);
+  setTimeout(updateHeight, 1800);
+
+  // Resize observer theo dõi thay đổi kích thước
+  if (window.ResizeObserver) {{
+    new ResizeObserver(function() {{
+      updateHeight();
+    }}).observe(carousel);
+  }}
+
+  track.addEventListener("touchstart", function(e) {{
+    startX = e.touches[0].clientX;
+    isDragging = true;
+    diffX = 0;
+    track.style.transition = "none";
+  }}, {{passive:true}});
+
+  track.addEventListener("touchmove", function(e) {{
+    if (!isDragging) return;
+    diffX = e.touches[0].clientX - startX;
+    var base = -cur * 100 / total;
+    track.style.transform = "translateX(calc(" + base + "% + " + diffX + "px))";
+  }}, {{passive:true}});
+
+  track.addEventListener("touchend", function() {{
+    isDragging = false;
+    if (diffX < -50)      goTo(cur + 1);
+    else if (diffX > 50)  goTo(cur - 1);
+    else                  goTo(cur);
+  }});
+}})();
+</script>
+</body>
+</html>
+"""
+                    import streamlit.components.v1 as components
+                    # height=0 + scrolling=False để Streamlit dùng postMessage tự resize
+                    # Đặt height đủ lớn ban đầu để không bị cắt, JS sẽ resize về đúng
+                    height_px = 1200 if total <= 2 else 1400
+                    components.html(html, height=height_px, scrolling=False)
 
         # ── Nút tải PDF ──
         if os.path.isfile(pdf_path):
